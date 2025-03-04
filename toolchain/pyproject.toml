@@ -39,7 +39,7 @@ dependencies = [
 
     # Chemistry
     "cantera==3.0.1",
-    "pyrometheus==1.0.2"
+    "pyrometheus@git+https://github.com/henryleberre/pyrometheus.git@transport"
 ]
 
 [tool.hatch.metadata]

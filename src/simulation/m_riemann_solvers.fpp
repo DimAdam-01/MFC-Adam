@@ -488,8 +488,8 @@ contains
                                 call get_mixture_molecular_weight(Ys_L, MW_L)
                                 call get_mixture_molecular_weight(Ys_R, MW_R)
 
-                                Xs_L(:) = Ys_L(:)*MW_L/mol_weights(:)
-                                Xs_R(:) = Ys_R(:)*MW_R/mol_weights(:)
+                                Xs_L(:) = Ys_L(:)*MW_L/molecular_weights(:)
+                                Xs_R(:) = Ys_R(:)*MW_R/molecular_weights(:)
 
                                 R_gas_L = gas_constant/MW_L
                                 R_gas_R = gas_constant/MW_R
@@ -2334,8 +2334,8 @@ contains
                                     call get_mixture_molecular_weight(Ys_L, MW_L)
                                     call get_mixture_molecular_weight(Ys_R, MW_R)
 
-                                    Xs_L(:) = Ys_L(:)*MW_L/mol_weights(:)
-                                    Xs_R(:) = Ys_R(:)*MW_R/mol_weights(:)
+                                    Xs_L(:) = Ys_L(:)*MW_L/molecular_weights(:)
+                                    Xs_R(:) = Ys_R(:)*MW_R/molecular_weights(:)
 
                                     R_gas_L = gas_constant/MW_L
                                     R_gas_R = gas_constant/MW_R
