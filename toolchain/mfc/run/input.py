@@ -84,6 +84,10 @@ class MFCInputFile(Case):
             ),
             True
 
+<<<<<<< HEAD
+=======
+        )
+>>>>>>> 295fb48b (Cyka)
 
         cons.unindent()
 
