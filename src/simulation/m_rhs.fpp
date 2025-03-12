@@ -496,7 +496,7 @@ contains
                             & idwbuff(3)%beg:idwbuff(3)%end))
                 end do
 
-                if (viscous .or. surface_tension) then
+                if (viscous .or. surface_tension .or. chem_params%diffusion) then
                     do l = mom_idx%beg, E_idx
                         @:ALLOCATE(flux_src_n(i)%vf(l)%sf( &
                                  & idwbuff(1)%beg:idwbuff(1)%end, &
@@ -796,7 +796,7 @@ contains
             ! Additional physics and source terms
             ! RHS addition for advection source
             call nvtxStartRange("RHS-ADVECTION-SRC")
-            call s_compute_advection_source_term(id, &
+            call s_compute_advection_source_term(id, q_T_sf, &
                                                  rhs_vf, &
                                                  q_cons_qp, &
                                                  q_prim_qp, &
@@ -810,8 +810,21 @@ contains
                                                                rhs_vf)
             call nvtxEndRange
 
+         !   call s_compute_chemistry_reaction_flux(rhs_vf, q_cons_qp%vf, q_T_sf, q_prim_qp%vf, idwint)
+
+
+
+            if (chemistry) then
+                 if (chem_params%diffusion) then
+                    call nvtxStartRange("RHS-CHEM-DIFFUSION")
+                    call s_compute_chemistry_diffusion_flux(id,q_prim_qp%vf,flux_src_n(id)%vf,q_T_sf,idwint)
+                    call nvtxEndRange
+                 end if
+             end if
+
+
             ! RHS additions for viscosity
-            if (viscous .or. surface_tension) then
+            if (viscous .or. surface_tension .or. chem_params%diffusion ) then
                 call nvtxStartRange("RHS-ADD-PHYSICS")
                 call s_compute_additional_physics_rhs(id, &
                                                       q_prim_qp%vf, &
@@ -920,9 +933,10 @@ contains
 
     end subroutine s_compute_rhs
 
-    subroutine s_compute_advection_source_term(idir, rhs_vf, q_cons_vf, q_prim_vf, flux_src_n_vf)
+    subroutine s_compute_advection_source_term(idir,q_T_sf, rhs_vf, q_cons_vf, q_prim_vf, flux_src_n_vf)
 
         integer, intent(in) :: idir
+        type(scalar_field), intent(inout) :: q_T_sf
         type(scalar_field), dimension(sys_size), intent(inout) :: rhs_vf
         type(vector_field), intent(inout) :: q_cons_vf
         type(vector_field), intent(inout) :: q_prim_vf
@@ -957,12 +971,12 @@ contains
         if (idir == 1) then
 
             if (bc_x%beg <= -5 .and. bc_x%beg >= -13) then
-                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf, q_T_sf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, -1, irx, iry, irz)
             end if
 
             if (bc_x%end <= -5 .and. bc_x%end >= -13) then
-                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf, q_T_sf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, 1, irx, iry, irz)
             end if
 
@@ -1066,12 +1080,12 @@ contains
             ! Applying the Riemann fluxes
 
             if (bc_y%beg <= -5 .and. bc_y%beg >= -13) then
-                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf,q_T_sf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, -1, irx, iry, irz)
             end if
 
             if (bc_y%end <= -5 .and. bc_y%end >= -13) then
-                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf,q_T_sf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, 1, irx, iry, irz)
             end if
 
@@ -1240,12 +1254,12 @@ contains
             ! Applying the Riemann fluxes
 
             if (bc_z%beg <= -5 .and. bc_z%beg >= -13) then
-                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf, q_T_sf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, -1, irx, iry, irz)
             end if
 
             if (bc_z%end <= -5 .and. bc_z%end >= -13) then
-                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf,q_T_sf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, 1, irx, iry, irz)
             end if
 
@@ -1514,7 +1528,18 @@ contains
                                 (flux_src_n(i)%sf(j - 1, k, l) &
                                  - flux_src_n(i)%sf(j, k, l))
                         end do
-                    end do
+
+                        if (chemistry) then
+                            !$acc loop seq
+                            do i = chemxb, chemxe
+                                rhs_vf(i)%sf(j, k, l) = &
+                                  rhs_vf(i)%sf(j, k, l) + 1._wp/dx(j)* &
+                                  (flux_src_n(i)%sf(j - 1, k, l) &
+                                  - flux_src_n(i)%sf(j, k, l))
+                            end do
+                          !  print *, i
+                        end if
+                  end do
                 end do
             end do
 
@@ -1595,6 +1620,16 @@ contains
                                     (flux_src_n(i)%sf(j, k - 1, l) &
                                      - flux_src_n(i)%sf(j, k, l))
                             end do
+
+                            if (chemistry) then 
+                               !$acc loop seq
+                               do i = chemxb, chemxe
+                                   rhs_vf(i)%sf(j, k, l) = &
+                                       rhs_vf(i)%sf(j, k, l) + 1d0/dy(k)* &
+                                       (flux_src_n(i)%sf(j , k-1, l) &
+                                       - flux_src_n(i)%sf(j, k, l))
+                               end do 
+                            end if
                         end do
                     end do
                 end do
@@ -1681,6 +1716,16 @@ contains
                                 (flux_src_n(i)%sf(j, k, l - 1) &
                                  - flux_src_n(i)%sf(j, k, l))
                         end do
+
+                        if (chemistry) then
+                            !$acc loop seq
+                            do i = chemxb, chemxe
+                                rhs_vf(i)%sf(j, k, l) = &
+                                    rhs_vf(i)%sf(j, k, l) + 1d0/dz(l)* &
+                                    (flux_src_n(i)%sf(j , k, l-1) &
+                                    - flux_src_n(i)%sf(j, k, l))
+                            end do
+                        end if
                     end do
                 end do
             end do

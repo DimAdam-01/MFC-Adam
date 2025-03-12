@@ -117,13 +117,16 @@ contains
             L(i) = 0._wp
         end do
 
+        L(chemxb:chemxe)=0._wp
+
+
     end subroutine s_compute_nonreflecting_subsonic_inflow_L
 
     !>  The L variables for the nonreflecting subsonic outflow
         !!      CBC see pg. 454 of Thompson (1990). This nonreflecting
         !!      subsonic CBC presumes an outgoing flow and reduces the
         !!      amplitude of any reflections caused by outgoing waves.
-    subroutine s_compute_nonreflecting_subsonic_outflow_L(lambda, L, rho, c, mf, dalpha_rho_ds, dpres_ds, dvel_ds, dadv_ds)
+    subroutine s_compute_nonreflecting_subsonic_outflow_L(lambda, L, rho, c, mf, dalpha_rho_ds, dpres_ds, dvel_ds, dadv_ds,dYk_ds)
 #ifdef _CRAYFTN
         !DIR$ INLINEALWAYS s_compute_nonreflecting_subsonic_outflow_L
 #else
@@ -136,6 +139,7 @@ contains
         real(wp), intent(in) :: dpres_ds
         real(wp), dimension(num_dims), intent(in) :: dvel_ds
         real(wp), dimension(num_fluids), intent(in) :: dadv_ds
+        real(kind(0d0)), dimension(num_species), intent(in) :: dYk_ds
 
         integer :: i !> Generic loop iterator
 
@@ -155,6 +159,8 @@ contains
 
         ! bubble index
         L(advxe) = 0._wp
+
+       L(chemxb:chemxe) = lambda(2)*dYk_ds(:)
 
     end subroutine s_compute_nonreflecting_subsonic_outflow_L
 

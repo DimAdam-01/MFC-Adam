@@ -74,6 +74,7 @@ class MFCInputFile(Case):
         real_type = 'real(sp)' if ARG('single') else 'real(dp)'
 
         # Write the generated Fortran code to the m_thermochem.f90 file with the chosen precision
+
         common.file_write(
             os.path.join(modules_dir, "m_thermochem.f90"),
             pyro.FortranCodeGenerator().generate(
@@ -82,7 +83,7 @@ class MFCInputFile(Case):
                 pyro.CodeGenerationOptions(scalar_type=real_type),
             ),
             True
-        )
+
 
         cons.unindent()
 

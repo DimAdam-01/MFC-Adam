@@ -26,6 +26,11 @@ module m_patches
 
     use m_mpi_common
 
+
+ use m_thermochem, only: &
+        num_species, molecular_weights, gas_constant, get_mixture_molecular_weight
+        
+
     implicit none
 
     private; 

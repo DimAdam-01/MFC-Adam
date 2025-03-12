@@ -48,8 +48,10 @@
 
         if (abs(T_L - T_R) < eps) then
             ! Case when T_L and T_R are very close
-            Cp_avg = sum(Yi_avg(:)*(0.5_wp*Cp_iL(i) + 0.5_wp*Cp_iR(:))*gas_constant/molecular_weights(:))
-            Cv_avg = sum(Yi_avg(:)*((0.5_wp*Cp_iL(i) + 0.5_wp*Cp_iR(:))*gas_constant/molecular_weights(:) - gas_constant/molecular_weights(:)))
+
+            Cp_avg = sum(Yi_avg(:)*(0.5_wp*Cp_iL(:) + 0.5_wp*Cp_iR(:))*gas_constant/molecular_weights(:))
+            Cv_avg = sum(Yi_avg(:)*((0.5_wp*Cp_iL(:) + 0.5_wp*Cp_iR(:))*gas_constant/molecular_weights(:) - gas_constant/molecular_weights(:)))
+
         else
             ! Normal calculation when T_L and T_R are sufficiently different
             Cp_avg = sum(Yi_avg(:)*(h_iR(:) - h_iL(:))/(T_R - T_L))

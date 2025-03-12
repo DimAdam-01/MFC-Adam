@@ -1,0 +1,59 @@
+description: |-
+  Hydrogen-Oxygen submechanism extracted from GRI-Mech 3.0.
+  Modified from the original to include N2.
+  
+  Redlich-Kwong coefficients are based on tabulated critical properties or
+  estimated according to the method of Joback and Reid, "Estimation of pure-
+  component properties from group-contributions," Chem. Eng. Comm. 57 (1987)
+  233-243
+
+generator: ck2yaml
+input-files: [h2o2.inp, gri30_tran.dat]
+cantera-version: 2.5.0
+date: Wed, 11 Dec 2019 16:59:04 -0500
+
+units: {length: cm, time: s, quantity: mol, activation-energy: cal/mol}
+
+phases:
+- name: ohmech
+  thermo: ideal-gas
+  elements: [ O ]
+  species: [ O]
+  kinetics: gas
+  transport: mixture-averaged
+  state: {T: 300.0, P: 1 atm}
+
+- name: ohmech-RK
+  thermo: Redlich-Kwong
+  elements: [ O]
+  species: [ O]
+  kinetics: gas
+  transport: mixture-averaged
+  state: {T: 300.0, P: 1 atm}
+
+species:
+- name: O
+  composition: {O: 1}
+  thermo:
+    model: NASA7
+    temperature-ranges: [200.0, 1000.0, 3500.0]
+    data:
+    - [3.1682671, -3.27931884e-03, 6.64306396e-06, -6.12806624e-09, 2.11265971e-12,
+      2.91222592e+04, 2.05193346]
+    - [2.56942078, -8.59741137e-05, 4.19484589e-08, -1.00177799e-11, 1.22833691e-15,
+      2.92175791e+04, 4.78433864]
+    note: L1/90
+  transport:
+    model: gas
+    geometry: atom
+    well-depth: 80.0
+    diameter: 2.75
+  equation-of-state:
+    model: Redlich-Kwong
+    a: 4.74173e+11
+    b: 10.69952492
+
+reactions:
+- equation:  O <=> O   # Reaction 1
+  rate-constant: {A: 5.0e+17, b: -1.0, Ea: 0.0}
+

@@ -79,7 +79,7 @@ case = {
     "bc_x%beg": -2,
     "bc_x%end": -3,
     # Chemistry
-    "chemistry": "F" if not args.chemistry else "T",
+    "chemistry": "T" if not args.chemistry else "T",
     "chem_params%diffusion": "F",
     "chem_params%reactions": "T",
     "cantera_file": ctfile,

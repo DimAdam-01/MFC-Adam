@@ -129,6 +129,34 @@
             q_prim_vf(advxe)%sf(i, j, 0) = patch_icpp(1)%alpha(2)
         end if
 
+    case (207) !2D Boundary Lido for multicomponent transport problems
+
+
+
+
+      q_prim_vf(2)%sf(i,j,0)=25.0_wp-5.0_wp*((y_cc(j)-0.015_wp))/(0.008_wp**2.0_wp)*exp(-(((x_cc(i)-0.015_wp))**2+((y_cc(j)-0.015_wp))**2)/(2._wp*0.008_wp**2.0_wp))
+
+      q_prim_vf(3)%sf(i,j,0)=25.0_wp+5.0_wp*((x_cc(i)-0.015_wp))/(0.008_wp**2.0_wp)*exp(-(((x_cc(i)-0.015_wp))**2+((y_cc(j)-0.015_wp))**2)/(2._wp*0.008_wp**2.0_wp))
+
+      q_prim_vf(4)%sf(i,j,0)=1.01325_wp*10.0_wp**(5.0_wp)*(1.0_wp+((q_prim_vf(2)%sf(i,j,0))**(2.0_wp)+(q_prim_vf(3)%sf(i,j,0))**(2.0_wp))**(0.5_wp))
+
+
+      q_prim_vf(6)%sf(i,j,0)=0.2_wp-x_cc(i)/0.03_wp*0.2_wp !H_2
+      q_prim_vf(7)%sf(i,j,0)=0.2_wp-x_cc(i)/0.03_wp*0.2_wp !H
+      q_prim_vf(8)%sf(i,j,0)=0.4_wp-x_cc(i)/0.03_wp*0.4_wp ! O2
+      q_prim_vf(9)%sf(i,j,0)= x_cc(i)/0.03_wp*0.2_wp  !H2O
+      q_prim_vf(10)%sf(i,j,0)=0.2_wp-x_cc(i)/0.03_wp*0.2_wp !CH4
+      q_prim_vf(11)%sf(i,j,0)=x_cc(i)/0.03_wp*0.2_wp !CO
+      q_prim_vf(12)%sf(i,j,0)=x_cc(i)/0.03_wp*0.2_wp !CO2
+      q_prim_vf(13)%sf(i,j,0)=x_cc(i)/0.03_wp*0.4_wp !N2
+
+      q_prim_vf(1)%sf(i,j,0)=q_prim_vf(4)%sf(i,j,0)/(300.0_wp*gas_constant*( q_prim_vf(6)%sf(i,j,0)/molecular_weights(1)+q_prim_vf(7)%sf(i,j,0)/molecular_weights(2)+q_prim_vf(8)%sf(i,j,0)/molecular_weights(3) &
+      +q_prim_vf(9)%sf(i,j,0)/molecular_weights(4))+q_prim_vf(10)%sf(i,j,0)/molecular_weights(5)+q_prim_vf(11)%sf(i,j,0)/molecular_weights(6)+q_prim_vf(12)%sf(i,j,0)/molecular_weights(7) &
+      +q_prim_vf(12)%sf(i,j,0)/molecular_weights(8))
+
+
+
+
     case default
         if (proc_rank == 0) then
             call s_int_to_str(patch_id, iStr)

@@ -1491,7 +1491,7 @@ contains
         call s_populate_grid_variables_buffers()
 
         ! Initialize the Temperature cache.
-        if (chemistry) call s_compute_q_T_sf(q_T_sf, q_cons_ts(1)%vf, idwint)
+        if (chemistry) call s_compute_q_T_sf(q_T_sf, q_cons_ts(1)%vf, idwbuff)
 
         ! Computation of parameters, allocation of memory, association of pointers,
         ! and/or execution of any other tasks that are needed to properly configure

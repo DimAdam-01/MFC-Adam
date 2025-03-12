@@ -182,9 +182,9 @@ contains
             e_Per_Kg = energy/rho
             Pdyn_Per_Kg = dyn_p/rho
 
-            T_guess = T
+            T_guess = 3000._wp
 
-            call get_temperature(e_Per_Kg - Pdyn_Per_Kg, T_guess, Y_rs, .true., T)
+            call get_temperature(e_Per_Kg - Pdyn_Per_Kg, 3000._wp, Y_rs, .true., T)
             call get_pressure(rho, T, Y_rs, pres)
 
         #:endif
@@ -1254,7 +1254,7 @@ contains
         !!  @param ix Index bounds in the first coordinate direction
         !!  @param iy Index bounds in the second coordinate direction
         !!  @param iz Index bounds in the third coordinate direction
-    subroutine s_convert_primitive_to_flux_variables(qK_prim_vf, &
+    subroutine s_convert_primitive_to_flux_variables(qK_prim_vf,q_T_sf, &
                                                      FK_vf, &
                                                      FK_src_vf, &
                                                      is1, is2, is3, s2b, s3b)
@@ -1265,7 +1265,7 @@ contains
         real(wp), dimension(0:, s2b:, s3b:, advxb:), intent(inout) :: FK_src_vf
 
         type(int_bounds_info), intent(in) :: is1, is2, is3
-
+        type(scalar_field), intent(in) :: q_T_sf
         ! Partial densities, density, velocity, pressure, energy, advection
         ! variables, the specific heat ratio and liquid stiffness functions,
         ! the shear and volume Reynolds numbers and the Weber numbers
@@ -1273,6 +1273,8 @@ contains
         real(wp), dimension(num_fluids) :: alpha_K
         real(wp) :: rho_K
         real(wp), dimension(num_dims) :: vel_K
+        real(wp), dimension(num_species) :: Ys
+        real(wp) :: T,Mw,R_gas
         real(wp) :: vel_K_sum
         real(wp) :: pres_K
         real(wp) :: E_K
@@ -1331,9 +1333,26 @@ contains
                                                                         alpha_K, alpha_rho_K, Re_K, j, k, l)
                     end if
 
-                    ! Computing the energy from the pressure
-                    E_K = gamma_K*pres_K + pi_inf_K &
-                          + 5e-1_wp*rho_K*vel_K_sum + qv_K
+
+                    if (chemistry) then
+                        !$acc loop seq
+                        do i = chemxb, chemxe
+                           Ys(i - chemxb + 1) = qK_prim_vf(j,k,l,i)
+                        end do
+
+
+                            call get_mixture_molecular_weight(Ys, Mw)
+                          ! print *, gas_constant
+                            R_gas=gas_constant/Mw
+                            T=pres_K/rho_K/R_gas
+                    !    T = q_T_sf%sf(j, k, l)
+                        call get_mixture_energy_mass(T, Ys, E_K)
+                        E_K = rho_K*E_K+5e-1_wp*rho_K*vel_K_sum
+                    else
+                        ! Computing the energy from the pressure
+                        E_K = gamma_K*pres_K + pi_inf_K &
+                        + 5e-1_wp*rho_K*vel_K_sum + qv_K
+                    end if 
 
                     ! mass flux, this should be \alpha_i \rho_i u_i
                     !$acc loop seq
@@ -1351,6 +1370,11 @@ contains
 
                     ! energy flux, u(E+p)
                     FK_vf(j, k, l, E_idx) = vel_K(dir_idx(1))*(E_K + pres_K)
+                    
+                    !$acc loop seq
+                    do i=1,num_species
+                        FK_vf(j, k, l, i-1+chemxb) = vel_K(dir_idx(1))*(rho_K*Ys(i))
+                    end do
 
                     if (riemann_solver == 1) then
                         !$acc loop seq
