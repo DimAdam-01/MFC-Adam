@@ -31,6 +31,7 @@ NT         = int(Tend / dt)
 SAVE_COUNT = 100
 NS         = 4000
 
+
 # Configuration case dictionary
 data = {
     # Logistics
@@ -78,7 +79,8 @@ data = {
     "format": 1,
     "precision": 2,
     "prim_vars_wrt": "T",
-    "parallel_io": "T",
+    "parallel_io": "F",
+ "chem_wrt_T"                  : "T",
     # Fluid Parameters (Heavy Gas)
     "fluid_pp(1)%gamma": 1.0e00 / (1.4e00 - 1.0e00),
     "fluid_pp(1)%pi_inf": 0.0e00,
@@ -90,7 +92,7 @@ data = {
     # Water Patch
     "patch_icpp(1)%geometry": 7,
     "patch_icpp(1)%hcid": 207,
-    "patch_icpp(1)%x_centroid": L/2,
+    "patch_icpp(1)%x_centroid": L /2,
     "patch_icpp(1)%y_centroid": L / 2,
     "patch_icpp(1)%length_x": L,
     "patch_icpp(1)%length_y": L,
@@ -99,7 +101,7 @@ data = {
     "patch_icpp(1)%pres": 1e5,
     "patch_icpp(1)%alpha_rho(1)": 1,
  #   "patch_icpp(1)%alpha_rho(2)": eps * 1,
-"patch_icpp(1)%alpha(1)": 1 ,
+     "patch_icpp(1)%alpha(1)": 1 ,
   #  "patch_icpp(1)%alpha(2)": eps,
      'cantera_file'                 : ctfile,
 }
