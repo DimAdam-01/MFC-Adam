@@ -24,12 +24,12 @@ L    = 0.03
 Nx   = 300
 Ny   = 300
 dx   = L / Nx
-dt   = 4e-9
+dt   = 3e-9
 Tend = 0.9e-4
 
 NT         = int(Tend / dt)
-SAVE_COUNT = 200
-NS         = 200
+SAVE_COUNT = 100
+NS         = 4000
 
 # Configuration case dictionary
 data = {
@@ -48,6 +48,7 @@ data = {
     "t_step_start": 0,
     "t_step_stop": NT,
     "t_step_save": NS,
+    "t_step_print": SAVE_COUNT,
     # Simulation Algorithm
     "model_eqns": 2,
     "alt_soundspeed": "F",

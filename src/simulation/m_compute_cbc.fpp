@@ -116,9 +116,9 @@ contains
         do i = 2, advxe
             L(i) = 0._wp
         end do
-
-        L(chemxb:chemxe)=0._wp
-
+        do i=chemxb,chemxe
+            L(i)=0._wp
+        end do
 
     end subroutine s_compute_nonreflecting_subsonic_inflow_L
 
@@ -159,9 +159,9 @@ contains
 
         ! bubble index
         L(advxe) = 0._wp
-
-       L(chemxb:chemxe) = lambda(2)*dYk_ds(:)
-
+        do i=chemxb,chemxe
+            L(i) = lambda(2)*dYk_ds(i-chemxb+1)
+        end do
     end subroutine s_compute_nonreflecting_subsonic_outflow_L
 
     !>  The L variables for the force-free subsonic outflow CBC,

@@ -83,11 +83,7 @@ class MFCInputFile(Case):
                 pyro.CodeGenerationOptions(scalar_type=real_type),
             ),
             True
-
-<<<<<<< HEAD
-=======
         )
->>>>>>> 295fb48b (Cyka)
 
         cons.unindent()
 
