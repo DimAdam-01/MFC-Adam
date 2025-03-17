@@ -3,23 +3,6 @@ import json
 import argparse
 import math
 
-import cantera as ct
-
-parser = argparse.ArgumentParser(
-    prog="nD_inert_shocktube",
-    formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-
-parser.add_argument("--mfc", type=json.loads, default='{}', metavar="DICT",
-                    help="MFC's toolchain's internal state.")
-parser.add_argument("--no-chem", dest='chemistry', default=True, action="store_false",
-                    help="Disable chemstry.")
-
-args = parser.parse_args()
-
-ctfile    = 'grigri.yaml'
-sol_L     = ct.Solution(ctfile)
-sol_L.TPX =  300,  101325, 'H:1'
-
 L    = 0.2
 Nx   = 124
 Ny   = 124
@@ -72,15 +55,11 @@ data = {
     "num_patches": 1,
     "num_fluids": 1,
     "viscous": "F",
-    'chemistry'                    : 'T' if not args.chemistry else 'T',
-    'chem_params%diffusion'        : 'F',
-    'chem_params%reactions'        : 'F',
     # Database Structure Parameters
     "format": 1,
     "precision": 2,
     "prim_vars_wrt": "T",
     "parallel_io": "F",
- "chem_wrt_T"                  : "T",
     # Fluid Parameters (Heavy Gas)
     "fluid_pp(1)%gamma": 1.0e00 / (1.4e00 - 1.0e00),
     "fluid_pp(1)%pi_inf": 0.0e00,
@@ -91,7 +70,7 @@ data = {
  
     # Water Patch
     "patch_icpp(1)%geometry": 7,
-    "patch_icpp(1)%hcid": 207,
+    "patch_icpp(1)%hcid": 208,
     "patch_icpp(1)%x_centroid": L /2,
     "patch_icpp(1)%y_centroid": L / 2,
     "patch_icpp(1)%length_x": L,
@@ -103,7 +82,6 @@ data = {
  #   "patch_icpp(1)%alpha_rho(2)": eps * 1,
      "patch_icpp(1)%alpha(1)": 1 ,
   #  "patch_icpp(1)%alpha(2)": eps,
-     'cantera_file'                 : ctfile,
 }
 
 print(json.dumps(data))
