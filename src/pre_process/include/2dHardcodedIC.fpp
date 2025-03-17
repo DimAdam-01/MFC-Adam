@@ -3,10 +3,52 @@
     real(wp) :: eps
     real(wp) :: r, rmax, gam, umax, p0
     real(wp) :: rhoH, rhoL, pRef, pInt, h, lam, wl, amp, intH, intL, alph
-    real(wp) :: x1c,y1c,x2c,y2c,Rvortex,r1c,r2c,cvortex,u1c,u2c,v1c,v2c,U,pres! This are coordinates for vortices
-    real(wp) :: y1,y2,y3,y4,y5,y6,y7,y8
+    real(wp) :: x1c,y1c,x2c,y2c,Rvortex,r1c,r2c,cvortex,u1c,u2c,v1c,v2c,u,pres! This are coordinates for vortices
+    real(wp) :: y1,y2,y3,y4,y5,y6,y7,y8,Lx,Ly
+    integer  :: Nx1,Nx2,Ny1,Ny2,Ny3,Ny4,Ny5,Ny6
+
+   
+
+
+    integer, parameter :: nFiles = 15   ! Can be changed to any number
+    integer, parameter :: xRows  = 401
+    !integer, parameter :: yRows  = 0
+    integer, parameter :: Nrows  = xRows
+    integer :: f, iter, ios, unit, idx,lol
+    real(8) :: x_len, x_step
+    character(len=100), dimension(nFiles) :: fileNames
+    ! Arrays to store all data from files - read once, use many times
+    real(kind(0d0)), dimension(nRows, nFiles) :: stored_values
+    real(kind(0d0)), dimension(nRows) :: x_coords
+    logical :: files_loaded = .false.
+    real(kind(0d0)) :: domain_start, domain_end
+    
+    character(len=*), parameter :: init_dir = "/home/pain/MFC-Adam/examples/1D_reactive_shocktube/D/"
+    character(len=20) :: file_num_str     ! For storing the file number as a string
+    character(len=20) :: zeros_part       ! For the trailing zeros part
+    character(len=6), parameter :: zeros_default = "015438"  ! Default zeros (can be changed)
 
     eps = 1e-9_wp
+
+    do f = 1, nFiles
+        ! Convert file number to string with proper formatting
+        if (f < 10) then
+            write(file_num_str, '(I1)') f  ! Single digit
+        else
+            write(file_num_str, '(I2)') f  ! Double digit
+            ! For more than 99 files, you might need to adjust this format
+        end if
+        
+        ! Create the filename with the pattern "prim.X.00.000000.dat"
+        if (f == 15) then
+            fileNames(f) = trim(init_dir) // "T.15.00." // zeros_default // ".dat"
+        else
+            fileNames(f) = trim(init_dir) // "prim." // trim(file_num_str) // ".00." // zeros_default // ".dat"
+        end if
+
+    end do
+
+
 
 #:enddef
 
@@ -133,35 +175,34 @@
 
     case (207) !2D Boundary Lido for multicomponent transport problems
 
-      x1c=0.015_wp
-      y1c=0.0125_wp
-      x2c=0.015_wp
-      y2c=0.0175_wp
+      x1c=0.1_wp
+      y1c=0.1_wp
+ !     x2c=0.015_wp
+  !    y2c=0.0175_wp
       r1c=(x_cc(i)-x1c)**(2.0_wp)+(y_cc(j)-y1c)**(2.0_wp)
-      r2c=(x_cc(i)-x2c)**(2.0_wp)+(y_cc(j)-y2c)**(2.0_wp)
-      rvortex=0.0030_wp 
-      cvortex=8.0_wp*10.0_wp**(4.0_wp)
-      U=25.0_wp
+    !  r2c=(x_cc(i)-x2c)**(2.0_wp)+(y_cc(j)-y2c)**(2.0_wp)
+      rvortex=0.015_wp 
+      cvortex=-0.06_wp
+      u=1234.81_wp
 
-      y1 = 0.2_wp - x_cc(i)/0.03_wp * 0.2_wp   ! H2
-      y2 = 0.2_wp - x_cc(i)/0.03_wp * 0.2_wp   ! H
-      y3 = 0.4_wp - x_cc(i)/0.03_wp * 0.4_wp   ! O2
-      y4 =      x_cc(i)/0.03_wp * 0.2_wp       ! H2O
-      y5 = 0.2_wp - x_cc(i)/0.03_wp * 0.2_wp   ! CH4
-      y6 =      x_cc(i)/0.03_wp * 0.2_wp       ! CO
-      y7 =      x_cc(i)/0.03_wp * 0.2_wp       ! CO2
-      y8 =      x_cc(i)/0.03_wp * 0.4_wp       ! N2
+      y1 = 0.2_wp - x_cc(i)/0.2_wp * 0.2_wp   ! H2
+      y2 = 0.2_wp - x_cc(i)/0.2_wp * 0.2_wp   ! H
+      y3 = 0.4_wp - x_cc(i)/0.2_wp * 0.4_wp   ! O2
+      y4 =      x_cc(i)/0.2_wp * 0.2_wp       ! H2O
+      y5 = 0.2_wp - x_cc(i)/0.2_wp * 0.2_wp   ! CH4
+      y6 =      x_cc(i)/0.2_wp * 0.2_wp       ! CO
+      y7 =      x_cc(i)/0.2_wp * 0.2_wp       ! CO2
+      y8 =      x_cc(i)/0.2_wp * 0.4_wp       ! N2
 
 
 
-      pres = 0.96325_wp * 10.0_wp**(5.0_wp) + 10.0_wp**(4.0_wp) * &
-       ( exp( -r1c/(Rvortex)**2 ) + exp( -r2c/(Rvortex)**2 ) )
-      u1c=-cvortex*((y_cc(j)-y1c))*exp(-r1c/(rvortex)**(2.0_wp)/2.0_wp)
-      v1c=cvortex*((x_cc(j)-x1c))*exp(-r1c/(rvortex)**(2.0_wp)/2.0_wp)
+  
+      u1c=cvortex*((y_cc(j)-y1c))*exp(-r1c/(rvortex**2.0_wp)/2.0_wp) 
+      v1c=-cvortex*((x_cc(i)-x1c))*exp(-r1c/(rvortex**2.0_wp)/2.0_wp) 
 
-      u2c=-cvortex*((y_cc(j)-y2c))*exp(-r2c/(rvortex)**(2.0_wp)/2.0_wp)
-      v2c=cvortex*((x_cc(j)-x2c))*exp(-r2c/(rvortex)**(2.0_wp)/2.0_wp)
-
+     ! u2c=-cvortex*((y_cc(j)-y2c))*exp(-r2c/(rvortex)**(2.0_wp)/2.0_wp)
+     ! v2c=cvortex*((x_cc(j)-x2c))*exp(-r2c/(rvortex)**(2.0_wp)/2.0_wp)
+    pres = 0.96325_wp * 10.0_wp**(5.0_wp) * (1.0_wp+sqrt(u1c**2.0_wp+v1c**2.0_wp))
 
        q_prim_vf(1)%sf(i,j,0)= pres / ( 300.0_wp * gas_constant * ( &
            y1/molecular_weights(1) + y2/molecular_weights(2) + &
@@ -170,28 +211,166 @@
            y7/molecular_weights(7) + y8/molecular_weights(8) ) )
 
 
-      q_prim_vf(2)%sf(i,j,0)=u+u1c+u2c
-      q_prim_vf(3)%sf(i,j,0)=v1c+v2c
+      q_prim_vf(2)%sf(i,j,0)=u+u1c
+      q_prim_vf(3)%sf(i,j,0)=v1c
 
 
 
       q_prim_vf(4)%sf(i,j,0)=pres
 
       q_prim_vf(5)%sf(i,j,0)=1.0_wp
-      q_prim_vf(6)%sf(i,j,0)=0.2_wp-x_cc(i)/0.03_wp*0.2_wp !H_2
-      q_prim_vf(7)%sf(i,j,0)=0.2_wp-x_cc(i)/0.03_wp*0.2_wp !H
-      q_prim_vf(8)%sf(i,j,0)=0.4_wp-x_cc(i)/0.03_wp*0.4_wp ! O2
-      q_prim_vf(9)%sf(i,j,0)= x_cc(i)/0.03_wp*0.2_wp  !H2O
-      q_prim_vf(10)%sf(i,j,0)=0.2_wp-x_cc(i)/0.03_wp*0.2_wp !CH4
-      q_prim_vf(11)%sf(i,j,0)=x_cc(i)/0.03_wp*0.2_wp !CO
-      q_prim_vf(12)%sf(i,j,0)=x_cc(i)/0.03_wp*0.2_wp !CO2
-      q_prim_vf(13)%sf(i,j,0)=x_cc(i)/0.03_wp*0.4_wp !N2
+      q_prim_vf(6)%sf(i,j,0)=0.2_wp-x_cc(i)/0.2_wp*0.2_wp !H_2
+      q_prim_vf(7)%sf(i,j,0)=0.2_wp-x_cc(i)/0.2_wp*0.2_wp !H
+      q_prim_vf(8)%sf(i,j,0)=0.4_wp-x_cc(i)/0.2_wp*0.4_wp ! O2
+      q_prim_vf(9)%sf(i,j,0)= x_cc(i)/0.2_wp*0.2_wp  !H2O
+      q_prim_vf(10)%sf(i,j,0)=0.2_wp-x_cc(i)/0.2_wp*0.2_wp !CH4
+      q_prim_vf(11)%sf(i,j,0)=x_cc(i)/0.2_wp*0.2_wp !CO
+      q_prim_vf(12)%sf(i,j,0)=x_cc(i)/0.2_wp*0.2_wp !CO2
+      q_prim_vf(13)%sf(i,j,0)=x_cc(i)/0.2_wp*0.4_wp !N2
 
    
-    print *, x_cc(i)
+ !@!   print *, pres
+
+    case (208) !2D Boundary Lido for multicomponent transport problems
+
+      x1c=0.1_wp
+      y1c=0.1_wp
+ !     x2c=0.015_wp
+  !    y2c=0.0175_wp
+      r1c=(x_cc(i)-x1c)**(2.0_wp)+(y_cc(j)-y1c)**(2.0_wp)
+    !  r2c=(x_cc(i)-x2c)**(2.0_wp)+(y_cc(j)-y2c)**(2.0_wp)
+      rvortex=0.015_wp 
+      cvortex=-0.06_wp
+      u=450.81_wp
+
+    
+
+  
+      u1c=cvortex*((y_cc(j)-y1c))/rvortex**(2.0_wp)*exp(-r1c/(rvortex**2.0_wp)/2.0_wp) 
+      v1c=-cvortex*((x_cc(i)-x1c))/rvortex**(2.0_wp)*exp(-r1c/(rvortex**2.0_wp)/2.0_wp) 
+
+     ! u2c=-cvortex*((y_cc(j)-y2c))*exp(-r2c/(rvortex)**(2.0_wp)/2.0_wp)
+     ! v2c=cvortex*((x_cc(j)-x2c))*exp(-r2c/(rvortex)**(2.0_wp)/2.0_wp)
+    pres = 0.96325_wp * 10.0_wp**(5.0_wp) * (1.0_wp+sqrt(u1c**2.0_wp+v1c**2.0_wp))
+
+       q_prim_vf(1)%sf(i,j,0)= pres / ( 300.0_wp * 287.0_wp)
+          
+      q_prim_vf(2)%sf(i,j,0)=u+u1c
+      q_prim_vf(3)%sf(i,j,0)=v1c
 
 
-    case default
+
+      q_prim_vf(4)%sf(i,j,0)=pres
+
+      q_prim_vf(5)%sf(i,j,0)=1.0_wp
+
+    case (209)
+        if (.not. files_loaded) then
+            ! Print status message
+            print *, "Loading all data files..."
+            
+            do f = 1, nFiles
+              ! Open the file for reading
+                open(newunit=unit, file=trim(fileNames(f)), status='old', action='read', iostat=ios)
+                if (ios /= 0) then
+                    print *, "Error opening file: ", trim(fileNames(f))
+                    cycle  ! Skip this file on error
+                endif
+                
+                ! Read all rows at once into memory
+                do iter = 1, nRows
+                    read(unit, *, iostat=ios) x_coords(iter), stored_values(iter, f)
+                    if (ios /= 0) then
+                        print *, "Error reading file ", trim(fileNames(f)), " at row ", iter
+                        exit  ! Exit loop on error
+                    endif
+                end do
+                close(unit)
+            end do
+            
+            ! Calculate domain information for mapping
+            domain_start = x_coords(1)
+            domain_end = x_coords(nRows)
+            x_step = (domain_end - domain_start) / (nRows - 1)
+            
+            print *, "All data files loaded. Domain range:", domain_start, "to", domain_end
+            files_loaded = .true.
+
+        endif
+        
+        ! Simple direct mapping - find the closest index without interpolation
+        idx = nint((x_cc(i) - domain_start) / x_step) + 1
+        
+        ! Boundary protection
+        ! if (idx < 1) idx = 1
+        ! if (idx > nRows) idx = nRows
+        
+        ! Assign values directly from stored data for each file
+ do f = 1, nFiles-1
+    if (f > 2) then
+        lol = 1
+    else 
+        lol = 0
+    end if
+    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(i+1, f)
+end do
+
+! Set element 3 to zero (as requested)
+q_prim_vf(3)%sf(i, j, 0) = 0.0_wp
+
+! Create rectangular pockets with unburnt fuel
+if (x_cc(i) < 0.0375_wp .and. x_cc(i) > 0.0335_wp) then
+    ! First pocket
+    if (y_cc(j) > 0.04_wp/4.0_wp .and. y_cc(j) < 0.04_wp/4.0_wp+0.04_wp/9.0_wp) then
+        do f = 1, sys_size-1
+            if (f /= 2 ) then
+                ! Apply the same lol offset
+                if (f > 2) then
+                    lol = 1
+                else 
+                    lol = 0
+                end if
+                
+                ! Special handling for pressure (index 4 in 2D system)
+                    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(350, f)
+            end if
+        end do
+        
+    ! Second pocket
+    else if (y_cc(j) > 0.04_wp/2.0_wp-0.04_wp/18.0_wp .and. y_cc(j) < 0.04_wp/2.0_wp+0.04_wp/18.0_wp) then
+        do f = 1, sys_size-1
+            if (f /= 2 ) then
+                ! Apply the same lol offset
+                if (f > 2) then
+                    lol = 1
+                else 
+                    lol = 0
+                end if
+                
+                ! Special handling for pressure
+                    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(350, f)
+            end if
+        end do
+        
+    ! Third pocket
+    else if (y_cc(j) < 3.0_wp*0.04_wp/4.0_wp .and. y_cc(j) > 3.0_wp*0.04_wp/4.0_wp-0.04_wp/9.0_wp) then
+        do f = 1, sys_size-1
+            if (f /= 2  )then
+                ! Apply the same lol offset
+                if (f > 2) then
+                    lol = 1
+                else 
+                    lol = 0
+                end if
+                
+                ! Special handling for pressure
+                    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(350, f)
+            end if
+        end do
+    end if
+end if                        !  q_T_sf%sf(i, j, 0) = stored_values(i+1, nFiles)
+  
+      case default
         if (proc_rank == 0) then
             call s_int_to_str(patch_id, iStr)
             call s_mpi_abort("Invalid hcid specified for patch "//trim(iStr))

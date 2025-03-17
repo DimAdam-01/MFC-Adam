@@ -4,15 +4,15 @@ import argparse
 import math
 
 L    = 0.2
-Nx   = 256
-Ny   = 256
+Nx   = 124
+Ny   = 124
 dx   = L / Nx
-dt   = 10e-9
-Tend = 1.4e-4
+dt   = 3e-9
+Tend = 0.9e-4
 
 NT         = int(Tend / dt)
-SAVE_COUNT = 40
-NS         = 200
+SAVE_COUNT = 1
+NS         = 4
 
 
 # Configuration case dictionary
@@ -55,13 +55,11 @@ data = {
     "num_patches": 1,
     "num_fluids": 1,
     "viscous": "F",
-   # Database Structure Parameters
+    # Database Structure Parameters
     "format": 1,
     "precision": 2,
     "prim_vars_wrt": "T",
-    "parallel_io": "T",
-    "omega_wrt(3)": "T",
-    "fd_order" : 2,
+    "parallel_io": "F",
     # Fluid Parameters (Heavy Gas)
     "fluid_pp(1)%gamma": 1.0e00 / (1.4e00 - 1.0e00),
     "fluid_pp(1)%pi_inf": 0.0e00,

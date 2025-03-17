@@ -2639,6 +2639,8 @@ contains
 
                                 flux_src_rs${XYZ}$_vf(j, k, l, advxb) = vel_src_rs${XYZ}$_vf(j, k, l, idx1)
 
+                                !print *, pres_L
+
                                 if (chemistry) then
                                     !$acc loop seq
                                     do i = chemxb, chemxe

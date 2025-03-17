@@ -26,9 +26,15 @@
             write(file_num_str, '(I2)') f  ! Double digit
             ! For more than 99 files, you might need to adjust this format
         end if
-        
+
+
+        if (f == 15) then
+            fileNames(f) = trim(init_dir) // "T.15.00." // zeros_default // ".dat"
+        else
+            fileNames(f) = trim(init_dir) // "prim." // trim(file_num_str) // ".00." // zeros_default // ".dat"
+        end if
+            
         ! Create the filename with the pattern "prim.X.00.000000.dat"
-        fileNames(f) = trim(init_dir) // "prim." // trim(file_num_str) // ".00." // zeros_default // ".dat"
     end do
 
 #:enddef

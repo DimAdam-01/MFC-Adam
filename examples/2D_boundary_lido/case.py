@@ -20,16 +20,16 @@ ctfile    = 'grigri.yaml'
 sol_L     = ct.Solution(ctfile)
 sol_L.TPX =  300,  101325, 'H:1'
 
-L    = 0.03
-Nx   = 300
-Ny   = 300
+L    = 0.2
+Nx   = 124
+Ny   = 124
 dx   = L / Nx
 dt   = 3e-9
 Tend = 0.9e-4
 
 NT         = int(Tend / dt)
-SAVE_COUNT = 100
-NS         = 4000
+SAVE_COUNT = 1
+NS         = 4
 
 
 # Configuration case dictionary
@@ -65,10 +65,10 @@ data = {
     "weno_Re_flux": "F",
     "riemann_solver": 2,
     "wave_speeds": 1,
-    "bc_x%beg": -8,
-    "bc_x%end": -8,
-    "bc_y%beg": -1,
-    "bc_y%end": -1,
+    "bc_x%beg": -11,
+    "bc_x%end": -12,
+    "bc_y%beg": -12,
+    "bc_y%end": -12,
     "num_patches": 1,
     "num_fluids": 1,
     "viscous": "F",
