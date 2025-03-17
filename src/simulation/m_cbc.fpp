@@ -954,9 +954,9 @@ contains
                         else if ((cbc_loc == -1 .and. bc${XYZ}$b == -10) .or. (cbc_loc == 1 .and. bc${XYZ}$e == -10)) then
                             call s_compute_constant_pressure_subsonic_outflow_L(lambda, L, rho, c, mf, dalpha_rho_ds, dpres_ds, dvel_ds, dadv_ds)
                         else if ((cbc_loc == -1 .and. bc${XYZ}$b == -11) .or. (cbc_loc == 1 .and. bc${XYZ}$e == -11)) then
-                            call s_compute_supersonic_inflow_L(lambda, L, rho, c, mf, dalpha_rho_ds, dpres_ds, dvel_ds, dadv_ds)
+                            call s_compute_supersonic_inflow_L(lambda, L, rho, c, mf, dalpha_rho_ds, dpres_ds, dvel_ds,dadv_ds)
                         else
-                            call s_compute_supersonic_outflow_L(lambda, L, rho, c, mf, dalpha_rho_ds, dpres_ds, dvel_ds, dadv_ds)
+                            call s_compute_supersonic_outflow_L(lambda, L, rho, c, mf, dalpha_rho_ds, dpres_ds,dvel_ds,dadv_ds,dYs_ds)
                         end if
 
                         ! Be careful about the cylindrical coordinate!
@@ -1534,7 +1534,7 @@ contains
                         do k = is2%beg, is2%end
                             do j = -1, buff_size
                                 flux_vf(i)%sf(k,dj*((n - 1) - 2*j) +j, r) = &
-                                    flux_rsx_vf_l(j, k, r, i)* &
+                                    flux_rsy_vf_l(j, k, r, i)* &
                                     sign(1._wp, -1._wp*cbc_loc)
 
 
@@ -1614,7 +1614,7 @@ contains
                         do k = is2%beg, is2%end
                             do j = -1, buff_size
                                 flux_vf(i)%sf(r,k,dj*((p - 1) - 2*j) + j) = &
-                                    flux_rsx_vf_l(j, k, r, i)* &
+                                    flux_rsz_vf_l(j, k, r, i)* &
                                     sign(1._wp, -1._wp*cbc_loc)
 
 

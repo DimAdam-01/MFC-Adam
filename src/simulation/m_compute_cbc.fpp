@@ -116,9 +116,12 @@ contains
         do i = 2, advxe
             L(i) = 0._wp
         end do
-        do i=chemxb,chemxe
-            L(i)=0._wp
-        end do
+
+        if (chemistry) then
+            do i=chemxb,chemxe
+                L(i)=0._wp
+            end do
+        end if
 
     end subroutine s_compute_nonreflecting_subsonic_inflow_L
 
@@ -139,7 +142,7 @@ contains
         real(wp), intent(in) :: dpres_ds
         real(wp), dimension(num_dims), intent(in) :: dvel_ds
         real(wp), dimension(num_fluids), intent(in) :: dadv_ds
-        real(kind(0d0)), dimension(num_species), intent(in) :: dYk_ds
+        real(wp), dimension(num_species), intent(in) :: dYk_ds
 
         integer :: i !> Generic loop iterator
 
@@ -159,9 +162,13 @@ contains
 
         ! bubble index
         L(advxe) = 0._wp
-        do i=chemxb,chemxe
-            L(i) = lambda(2)*dYk_ds(i-chemxb+1)
-        end do
+
+        if (chemistry) then
+            do i=chemxb,chemxe
+                L(i) = lambda(2)*dYk_ds(i-chemxb+1)
+            end do
+        end if
+
     end subroutine s_compute_nonreflecting_subsonic_outflow_L
 
     !>  The L variables for the force-free subsonic outflow CBC,
@@ -266,6 +273,12 @@ contains
         do i = 1, advxe
             L(i) = 0._wp
         end do
+                
+        if (chemistry) then
+            do i=chemxb,chemxe
+               L(i) = 0._wp
+            end do
+        end if
 
     end subroutine s_compute_supersonic_inflow_L
 
@@ -273,7 +286,7 @@ contains
         !!      of Thompson (1990). For the supersonic outflow CBC, the
         !!      flow evolution at the boundary is determined completely
         !!      by the interior data.
-    subroutine s_compute_supersonic_outflow_L(lambda, L, rho, c, mf, dalpha_rho_ds, dpres_ds, dvel_ds, dadv_ds)
+    subroutine s_compute_supersonic_outflow_L(lambda, L, rho, c, mf, dalpha_rho_ds, dpres_ds, dvel_ds, dadv_ds,dYk_ds)
 #ifdef _CRAYFTN
         !DIR$ INLINEALWAYS s_compute_supersonic_outflow_L
 #else
@@ -286,6 +299,7 @@ contains
         real(wp), intent(in) :: dpres_ds
         real(wp), dimension(num_dims), intent(in) :: dvel_ds
         real(wp), dimension(num_fluids), intent(in) :: dadv_ds
+        real(wp), dimension(num_species), intent(in) :: dYk_ds
 
         integer :: i !< Generic loop iterator
 
@@ -304,7 +318,13 @@ contains
         end do
 
         L(advxe) = lambda(3)*(dpres_ds + rho*c*dvel_ds(dir_idx(1)))
+       
+        if (chemistry) then
+            do i=chemxb,chemxe
+               L(i) = lambda(2)*dYk_ds(i-chemxb+1)
+            end do
+        end if
 
-    end subroutine s_compute_supersonic_outflow_L
+     end subroutine s_compute_supersonic_outflow_L
 
 end module m_compute_cbc
