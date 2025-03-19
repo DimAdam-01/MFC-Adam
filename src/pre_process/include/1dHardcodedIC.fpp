@@ -1,8 +1,8 @@
 #:def Hardcoded1DVariables()
 
 
-    integer, parameter :: nFiles = 15   ! Can be changed to any number
-    integer, parameter :: nRows  = 2001
+    integer, parameter :: nFiles = 14   ! Can be changed to any number
+    integer, parameter :: nRows  = 1025
     integer :: f, iter, ios, unit, idx
     real(8) :: x_len, x_step
     character(len=100), dimension(nFiles) :: fileNames
@@ -13,6 +13,7 @@
     real(kind(0d0)) :: domain_start, domain_end
     
     character(len=*), parameter :: init_dir = "/home/pain/ChemMFC/examples/Initial/"
+!character(len=*), parameter :: init_dir = "/home/pain/ChemMFC/examples/Initial/"
     character(len=20) :: file_num_str     ! For storing the file number as a string
     character(len=20) :: zeros_part       ! For the trailing zeros part
     character(len=6), parameter :: zeros_default = "000000"  ! Default zeros (can be changed)
@@ -122,7 +123,7 @@
         
         ! Assign values directly from stored data for each file
         do f = 1, nFiles
-            q_prim_vf(f)%sf(i, 0, 0) = stored_values(idx+1, f)
+            q_prim_vf(f)%sf(i, 0, 0) = stored_values(i+1, f)
         end do
 
     case default

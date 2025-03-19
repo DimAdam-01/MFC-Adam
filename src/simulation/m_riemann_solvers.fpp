@@ -3296,7 +3296,7 @@ contains
 
         if (norm_dir == 1) then
 
-            if (viscous .or. (surface_tension)) then
+            if (viscous .or. (surface_tension) .or. chem_params%diffusion) then
 
                 !$acc parallel loop collapse(4) gang vector default(present)
                 do i = momxb, E_idx
@@ -3308,6 +3308,18 @@ contains
                         end do
                     end do
                 end do
+               
+               !$acc parallel loop collapse(4) gang vector default(present)
+               do i = chemxb, chemxe
+                  do l = is3%beg, is3%end
+                      do k = is2%beg, is2%end
+                          do j = is1%beg, is1%end
+                              flux_src_vf(i)%sf(j, k, l) = 0._wp
+                          end do
+                      end do
+                  end do
+               end do
+
             end if
 
             if (qbmm) then
@@ -3327,7 +3339,7 @@ contains
             ! Reshaping Inputted Data in y-direction
         elseif (norm_dir == 2) then
 
-            if (viscous .or. (surface_tension)) then
+            if (viscous .or. (surface_tension) .or. chem_params%diffusion) then
                 !$acc parallel loop collapse(4) gang vector default(present)
                 do i = momxb, E_idx
                     do l = is3%beg, is3%end
@@ -3338,6 +3350,18 @@ contains
                         end do
                     end do
                 end do
+
+               !$acc parallel loop collapse(4) gang vector default(present)
+               do i = chemxb, chemxe
+                  do l = is3%beg, is3%end
+                      do k = is2%beg, is2%end
+                          do j = is1%beg, is1%end
+                              flux_src_vf(i)%sf(j, k, l) = 0._wp
+                          end do
+                      end do
+                  end do
+               end do
+
             end if
 
             if (qbmm) then
@@ -3356,7 +3380,7 @@ contains
             ! Reshaping Inputted Data in z-direction
         else
 
-            if (viscous .or. (surface_tension)) then
+            if (viscous .or. (surface_tension) .or. chem_params%diffusion) then
                 !$acc parallel loop collapse(4) gang vector default(present)
                 do i = momxb, E_idx
                     do j = is1%beg, is1%end
@@ -3367,6 +3391,18 @@ contains
                         end do
                     end do
                 end do
+
+               !$acc parallel loop collapse(4) gang vector default(present)
+               do i = chemxb, chemxe
+                  do l = is3%beg, is3%end
+                      do k = is2%beg, is2%end
+                          do j = is1%beg, is1%end
+                              flux_src_vf(i)%sf(j, k, l) = 0._wp
+                          end do
+                      end do
+                  end do
+               end do
+
             end if
 
             if (qbmm) then

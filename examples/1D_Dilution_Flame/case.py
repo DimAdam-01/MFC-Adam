@@ -16,23 +16,23 @@ parser = argparse.ArgumentParser(
 parser.add_argument("--mfc", type=json.loads, default='{}', metavar="DICT",
                     help="MFC's toolchain's internal state.")
 parser.add_argument("--no-chem", dest='chemistry', default=True, action="store_false",
-                    help="Disable chemstry.")
+                    help="Disable chemistry.")
 
 args = parser.parse_args()
 
 ctfile    = 'h2o2.yaml'
 sol_L     = ct.Solution(ctfile)
-sol_L.TPX =  300,  101325, 'O:1'
+sol_L.TPX =  300,  8000, 'O2:2,N2:2,H2O:5'
 
-L    = 0.0016
+L    = 0.016
 Nx   = 1024
 dx   = L / Nx
-dt   = 4e-9
-Tend = 0.9e-4
+dt   = 0.1e-8
+Tend = 0.60e-4
 
 NT         = int(Tend / dt)
-SAVE_COUNT = 250
-NS         = 250
+SAVE_COUNT = 800
+NS         = 800
 case = {
     # Logistics ================================================================
     'run_time_info'                : 'T',
@@ -74,14 +74,14 @@ case = {
 
     # Chemistry ================================================================
     'chemistry'                    : 'T' if not args.chemistry else 'T',
-    'chem_params%diffusion'        : 'F',
-    'chem_params%reactions'        : 'F',
+    'chem_params%diffusion'        : 'T',
+    'chem_params%reactions'        : 'T',
     # ==========================================================================
 
     # Formatted Database Files Structure Parameters ============================
     'format'                       : 1,
     'precision'                    : 2,
-    'prim_vars_wrt'                : 'F',
+    'prim_vars_wrt'                : 'T',
     # ==========================================================================
 
     # ==========================================================================
@@ -89,18 +89,14 @@ case = {
     'patch_icpp(1)%hcid'           : 102,
     'patch_icpp(1)%x_centroid'     : L/2,
     'patch_icpp(1)%length_x'       : L,
-    'patch_icpp(1)%vel(1)'         : '8*exp(-400*((x-0.002/2)/0.002)**2)',
-    'patch_icpp(1)%pres'           : 1.01315e5,
+    'patch_icpp(1)%vel(1)'         : '0',
+    'patch_icpp(1)%pres'           : 1.01325e5,
     'patch_icpp(1)%alpha(1)'       : 1,
-    # 'patch_icpp(1)%Y(1)'           : '0.4+x/0.002*0.2',
-   # 'patch_icpp(1)%Y(4)'           : '0.6-x/0.002*0.2',
-   # 'patch_icpp(1)%Y(5)'           : '0.6-x/0.002*0.2',
-    'patch_icpp(1)%alpha_rho(1)'   : '1',#'(1.01325*10**5-1100*exp(-400*((x-0.002/2)/0.002)**2))/(8.314*1000*( (0.4+x/0.002*0.2)/2.016+(0.6-x/0.002*0.2)/32)*(300+30*exp(-400*((x-0.002/2)/0.002)**2)))',
-    # ==========================================================================
-
-    # Fluids Physical Parameters ===============================================
-    'fluid_pp(1)%gamma'            : 1.0E+00/(1.32E+00-1.0E+00),
+    'patch_icpp(1)%alpha_rho(1)'   :  '1',
+     # Fluids Physical Parameters ===============================================
+    'fluid_pp(1)%gamma'            : 1.0E+00/(1.9326E+00-1.0E+00),
     'fluid_pp(1)%pi_inf'           : 0,
+ #   'fluid_pp(1)%Re(1)'            : 20000000,
     # ==========================================================================
 
     # Chemistry ================================================================

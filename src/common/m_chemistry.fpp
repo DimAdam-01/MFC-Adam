@@ -140,109 +140,96 @@ contains
                   do y = bounds(2)%beg, bounds(2)%end
                       do x = bounds(1)%beg, bounds(1)%end
 
-                          dx=x_cc(x+1) - x_cc(x)
+                          dx = x_cc(x + 1) - x_cc(x)
+
+                          !$acc loop seq
+                          do i = chemxb, chemxe
+                              Ys_L(i - chemxb + 1) = q_prim_qp(i)%sf(x, y, z)
+                              Ys_R(i - chemxb + 1) = q_prim_qp(i)%sf(x+1, y, z)
+                              Ys_cell(i - chemxb + 1) = 0.5_wp*(q_prim_qp(i)%sf(x, y, z) + q_prim_qp(i)%sf(x+1, y, z))
+                          end do
+
+                          call get_mixture_molecular_weight(Ys_L, MW_L) 
+                          call get_mixture_molecular_weight(Ys_R, MW_R) 
+
+                          MW_cell = 0.5_wp*(MW_L + MW_R)
+
+                          call get_mole_fractions(MW_L, Ys_L, Xs_L)
+                          call get_mole_fractions(MW_R, Ys_R, Xs_R)
+
+                          Rgas_L = gas_constant / MW_L
+                          Rgas_R = gas_constant / MW_R
+
+                          P_L = q_prim_qp(E_idx)%sf(x, y, z)
+                          P_R = q_prim_qp(E_idx)%sf(x+1, y, z)
+
+                          rho_L = q_prim_qp(1)%sf(x, y, z)
+                          rho_R = q_prim_qp(1)%sf(x+1, y, z)
+
+                          T_L = P_L / rho_L / Rgas_L
+                          T_R = P_R / rho_R / Rgas_R
+
+                          rho_cell = 0.5_wp*(rho_L + rho_R)
+
+                          dT_dx_n = (T_R - T_L) / dx
+
+                          call get_species_mass_diffusivities_mixavg(&
+                              P_L, T_L, Ys_L, mass_diffusivities_mixavg1)
+                          call get_species_mass_diffusivities_mixavg(&
+                              P_R, T_R, Ys_R, mass_diffusivities_mixavg2)
+
+                          call get_mixture_thermal_conductivity_mixavg(&
+                              T_L, Ys_L,lamda_L)
+                          call get_mixture_thermal_conductivity_mixavg(&
+                              T_R,Ys_R,lamda_R )
+
+                          call get_species_enthalpies_rt(T_L, h_l)
+                          call get_species_enthalpies_rt(T_R, h_r)
+
+                          !$acc loop seq
+                          do i = chemxb, chemxe
+                              h_l(i - chemxb + 1) = h_l(i - chemxb + 1) * gas_constant * T_L / molecular_weights(i - chemxb + 1)
+                              h_r(i - chemxb + 1) = h_r(i - chemxb + 1) * gas_constant * T_R / molecular_weights(i - chemxb + 1)
+                              Xs_cell(i - chemxb + 1) = 0.5_wp*(Xs_L(i - chemxb + 1) + Xs_R(i - chemxb + 1))
+                              h_k(i - chemxb + 1) = 0.5_wp*(h_l(i - chemxb + 1) + h_r(i - chemxb + 1))
+                              dXk_dx_n(i - chemxb + 1) = (Xs_R(i - chemxb + 1) - Xs_L(i - chemxb + 1)) / dx
+                          end do
 
                           !$acc loop seq
                           do i = chemxb,chemxe
-                              Ys_L(i-chemxb+1) = q_prim_qp(i)%sf(x,y,z)
-                              Ys_R(i-chemxb+1) = q_prim_qp(i)%sf(x+1,y,z)
+                              mass_diffusivities_mixavg_Cell(i - chemxb + 1)=(mass_diffusivities_mixavg2(i - chemxb + 1) &
+                                  +mass_diffusivities_mixavg1(i - chemxb + 1)) / 2.0_wp*(1.0_wp - Xs_cell(i - chemxb + 1))/(1.0_wp - Ys_cell(i - chemxb + 1))
                           end do
 
-                          Ys_cell=0.5_wp*(Ys_L+Ys_R)
-                          
-
-                          call get_mixture_molecular_weight(Ys_L,MW_L) 
-                          call get_mixture_molecular_weight(Ys_R,MW_R) 
-
-                          MW_cell=0.5_wp*(MW_L+MW_R)
-
-                          call get_mole_fractions(MW_L,Ys_L,Xs_L)
-                          call get_mole_fractions(MW_R,Ys_R,Xs_R)
-
-                          Rgas_L = gas_constant/MW_L
-                          Rgas_R = gas_constant/MW_R
-
-                          P_L =q_prim_qp(E_idx)%sf(x,y,z)
-                          P_R =q_prim_qp(E_idx)%sf(x+1,y,z)
-
-                          rho_L =q_prim_qp(1)%sf(x,y,z)
-                          rho_R =q_prim_qp(1)%sf(x+1,y,z)
-
-                          T_L=  P_L/rho_L/Rgas_L
-                          T_R = P_R/rho_R/Rgas_R
-
-                          Xs_cell=0.5_wp*(Xs_L+Xs_R)
-
-
-                          rho_cell=0.5_wp*(rho_L+rho_R)
-
-                          dT_dx_n=(T_R-T_L)/dx
-
-                        !  print *, rho_R,x
-
-                          call get_species_enthalpies_rt(T_L,h_l)
-                          call get_species_enthalpies_rt(T_R,h_r)
-
-                          h_l=h_l*gas_constant*T_L/molecular_weights(:)
-                          h_r=h_r*gas_constant*T_R/molecular_weights(:)
-
-                          h_k=0.5_wp*(h_l+h_r)
-
-                          call get_species_mass_diffusivities_mixavg(&
-                            P_L, T_L, Ys_L, mass_diffusivities_mixavg1)
-                          call get_species_mass_diffusivities_mixavg(&
-                            P_R, T_R, Ys_R, mass_diffusivities_mixavg2)
-
-                          call get_mixture_thermal_conductivity_mixavg(&
-                            T_L, Ys_L,lamda_L)
-
-                          call get_mixture_thermal_conductivity_mixavg(&
-                            T_R,Ys_R,lamda_R )
-
-                          !$acc loop seq
-                          do i = chemxb,chemxe
-                              mass_diffusivities_mixavg_Cell(i-chemxb+1)=(mass_diffusivities_mixavg2(i-chemxb+1) &
-                                  +mass_diffusivities_mixavg1(i-chemxb+1))/2.0_wp*(1.0_wp-Xs_cell(i-chemxb+1))/(1.0_wp-Ys_cell(i-chemxb+1))
-                          end do
-
-                          dXk_dx_n=(Xs_R(:)-Xs_L(:))/dx
-
-                          lamda_Cell=0.5_wp*(lamda_R+lamda_L)
-
-                          dT_dx_n=(T_R-T_L)/dx
-
-                          Mass_Diffu_Flux(:)=rho_cell*mass_diffusivities_mixavg_Cell(:)*molecular_weights(:)/MW_cell*dXk_dx_n(:)
+                          lamda_Cell=0.5_wp*(lamda_R + lamda_L)
 
                           rho_Vic=0.0_wp
                           Mass_Diffu_Energy=0.0_wp
                           
                           !$acc loop seq
                           do eqn=chemxb,chemxe
-                              rho_Vic=rho_Vic+Mass_Diffu_Flux(eqn-chemxb+1)
-                              Mass_Diffu_Energy=Mass_Diffu_Energy+h_k(eqn-chemxb+1)*Mass_Diffu_Flux(eqn-chemxb+1)
+                              Mass_Diffu_Flux(eqn - chemxb + 1) = rho_cell * mass_diffusivities_mixavg_Cell(eqn - chemxb + 1) * molecular_weights(eqn - chemxb + 1) / MW_cell * dXk_dx_n(eqn - chemxb + 1)
+                              rho_Vic = rho_Vic + Mass_Diffu_Flux(eqn - chemxb + 1)
+                              Mass_Diffu_Energy = Mass_Diffu_Energy + h_k(eqn - chemxb + 1) * Mass_Diffu_Flux(eqn - chemxb + 1)
+                           
                           end do
 
                           !$acc loop seq
                           do eqn=chemxb,chemxe
                               Mass_Diffu_Energy=Mass_Diffu_Energy-h_k(eqn-chemxb+1)*Ys_cell(eqn-chemxb+1)*rho_Vic
+                              Mass_Diffu_Flux(eqn - chemxb + 1) =Mass_Diffu_Flux (eqn - chemxb + 1) - rho_Vic*Ys_cell(eqn - chemxb + 1)
                           end do
 
-                          Mass_Diffu_Flux=Mass_Diffu_Flux -rho_Vic*Ys_cell
                           Mass_Diffu_Energy=lamda_Cell*dT_dx_n+Mass_Diffu_Energy
 
-
-                          flux_src_vf(E_idx)%sf(x, y, z) = -Mass_Diffu_Energy
+                          flux_src_vf(E_idx)%sf(x, y, z) = flux_src_vf(E_idx)%sf(x, y, z) - Mass_Diffu_Energy
 
                           !$acc loop seq
                           do eqn=chemxb, chemxe
-                              flux_src_vf(eqn)%sf(x,y,z)=0.0_wp
-                              flux_src_vf(eqn)%sf(x,y,z)= & 
-                              flux_src_vf(eqn)%sf(x,y,z) - &
-                              Mass_diffu_Flux(eqn-chemxb+1)
+                                  flux_src_vf(eqn)%sf(x, y, z) =  & 
+                                  flux_src_vf(eqn)%sf(x, y, z) - &
+                                  Mass_diffu_Flux(eqn - chemxb + 1)
                           end do
-
-                         ! print *, q_prim_qp(E_idx)%sf(bounds(1)%end+1,y,z), bounds(1)%end+1
-
                       end do
                   end do
               end do
@@ -256,98 +243,91 @@ contains
                           dy=y_cc(y+1) - y_cc(y)
 
                           !$acc loop seq
-                          do i = chemxb,chemxe
-                              Ys_L(i-chemxb+1) = q_prim_qp(i)%sf(x,y,z)
-                              Ys_R(i-chemxb+1) = q_prim_qp(i)%sf(x,y+1,z)
+                          do i = chemxb, chemxe
+                              Ys_L(i - chemxb + 1) = q_prim_qp(i)%sf(x, y, z)
+                              Ys_R(i - chemxb + 1) = q_prim_qp(i)%sf(x, y+1, z)
+                              Ys_cell(i - chemxb + 1) = 0.5_wp*(q_prim_qp(i)%sf(x, y+1, z) + q_prim_qp(i)%sf(x, y, z))
                           end do
 
-                          Ys_cell=0.5_wp*(Ys_L+Ys_R)
+                          call get_mixture_molecular_weight(Ys_L, MW_L) 
+                          call get_mixture_molecular_weight(Ys_R, MW_R) 
 
-                          call get_mixture_molecular_weight(Ys_L,MW_L) 
-                          call get_mixture_molecular_weight(Ys_R,MW_R) 
+                          MW_cell = 0.5_wp*(MW_L + MW_R)
 
-                          MW_cell=0.5_wp*(MW_L+MW_R)
+                          call get_mole_fractions(MW_L, Ys_L, Xs_L)
+                          call get_mole_fractions(MW_R, Ys_R, Xs_R)
 
-                          call get_mole_fractions(MW_L,Ys_L,Xs_L)
-                          call get_mole_fractions(MW_R,Ys_R,Xs_R)
+                          Rgas_L = gas_constant / MW_L
+                          Rgas_R = gas_constant / MW_R
 
-                          Rgas_L = gas_constant/MW_L
-                          Rgas_R = gas_constant/MW_R
+                          P_L = q_prim_qp(E_idx)%sf(x, y, z)
+                          P_R = q_prim_qp(E_idx)%sf(x, y + 1, z)
 
-                          P_L =q_prim_qp(E_idx)%sf(x,y,z)
-                          P_R =q_prim_qp(E_idx)%sf(x,y+1,z)
+                          rho_L = q_prim_qp(1)%sf(x, y, z)
+                          rho_R = q_prim_qp(1)%sf(x, y + 1, z)
 
-                          rho_L =q_prim_qp(1)%sf(x,y,z)
-                          rho_R =q_prim_qp(1)%sf(x,y+1,z)
+                          T_L = P_L / rho_L / Rgas_L
+                          T_R = P_R / rho_R / Rgas_R
 
-                          T_L=  P_L/rho_L/Rgas_L
-                          T_R = P_R/rho_R/Rgas_R
+                          rho_cell = 0.5_wp*(rho_L + rho_R)
 
-                          Xs_cell=0.5_wp*(Xs_L+Xs_R)
-
-                          rho_cell=0.5_wp*(rho_L+rho_R)
-
-                          dT_dx_n=(T_R-T_L)/dy
-
-                          call get_species_enthalpies_rt(T_L,h_l)
-                          call get_species_enthalpies_rt(T_R,h_r)
-
-                          h_l=h_l*gas_constant*T_L/molecular_weights(:)
-                          h_r=h_r*gas_constant*T_R/molecular_weights(:)
-
-                          h_k=0.5_wp*(h_l+h_r)
+                          dT_dx_n = (T_R - T_L) / dy
 
                           call get_species_mass_diffusivities_mixavg(&
-                            P_L, T_L, Ys_L, mass_diffusivities_mixavg1)
+                              P_L, T_L, Ys_L, mass_diffusivities_mixavg1)
                           call get_species_mass_diffusivities_mixavg(&
-                            P_R, T_R, Ys_R, mass_diffusivities_mixavg2)
+                              P_R, T_R, Ys_R, mass_diffusivities_mixavg2)
 
                           call get_mixture_thermal_conductivity_mixavg(&
-                            T_L, Ys_L,lamda_L)
-
+                              T_L, Ys_L,lamda_L)
                           call get_mixture_thermal_conductivity_mixavg(&
-                            T_R,Ys_R,lamda_R )
+                              T_R,Ys_R,lamda_R )
+
+                          call get_species_enthalpies_rt(T_L, h_l)
+                          call get_species_enthalpies_rt(T_R, h_r)
+
+                          !$acc loop seq
+                          do i = chemxb, chemxe
+                              h_l(i - chemxb + 1) = h_l(i - chemxb + 1) * gas_constant * T_L / molecular_weights(i - chemxb + 1)
+                              h_r(i - chemxb + 1) = h_r(i - chemxb + 1) * gas_constant * T_R / molecular_weights(i - chemxb + 1)
+                              Xs_cell(i - chemxb + 1) = 0.5_wp*(Xs_L(i - chemxb + 1) + Xs_R(i - chemxb + 1))
+                              h_k(i - chemxb + 1) = 0.5_wp*(h_l(i - chemxb + 1) + h_r(i - chemxb + 1))
+                              dXk_dx_n(i - chemxb + 1) = (Xs_R(i - chemxb + 1) - Xs_L(i - chemxb + 1)) / dy
+                          end do
 
                           !$acc loop seq
                           do i = chemxb,chemxe
-                              mass_diffusivities_mixavg_Cell(i-chemxb+1)=(mass_diffusivities_mixavg2(i-chemxb+1) &
-                                  +mass_diffusivities_mixavg1(i-chemxb+1))/2.0_wp*(1.0_wp-Xs_cell(i-chemxb+1))/(1.0_wp-Ys_cell(i-chemxb+1))
+                              mass_diffusivities_mixavg_Cell(i - chemxb + 1)=(mass_diffusivities_mixavg2(i - chemxb + 1) &
+                                  +mass_diffusivities_mixavg1(i - chemxb + 1)) / 2.0_wp*(1.0_wp - Xs_cell(i - chemxb + 1))/(1.0_wp - Ys_cell(i - chemxb + 1))
                           end do
 
-                          dXk_dx_n=(Xs_R(:)-Xs_L(:))/dx
-
-                          lamda_Cell=0.5_wp*(lamda_R+lamda_L)
-
-                          dT_dx_n=(T_R-T_L)/dy
-
-                          Mass_Diffu_Flux(:)=rho_cell*mass_diffusivities_mixavg_Cell(:)*molecular_weights(:)/MW_cell*dXk_dx_n(:)
+                          lamda_Cell=0.5_wp*(lamda_R + lamda_L)
 
                           rho_Vic=0.0_wp
                           Mass_Diffu_Energy=0.0_wp
-
+                          
                           !$acc loop seq
                           do eqn=chemxb,chemxe
-                              rho_Vic=rho_Vic+Mass_Diffu_Flux(eqn-chemxb+1)
-                              Mass_Diffu_Energy=Mass_Diffu_Energy+h_k(eqn-chemxb+1)*Mass_Diffu_Flux(eqn-chemxb+1)
+                              Mass_Diffu_Flux(eqn - chemxb + 1) = rho_cell * mass_diffusivities_mixavg_Cell(eqn - chemxb + 1) * molecular_weights(eqn - chemxb + 1) / MW_cell * dXk_dx_n(eqn - chemxb + 1)
+                              rho_Vic = rho_Vic + Mass_Diffu_Flux(eqn - chemxb + 1)
+                              Mass_Diffu_Energy = Mass_Diffu_Energy + h_k(eqn - chemxb + 1) * Mass_Diffu_Flux(eqn - chemxb + 1)
                           end do
 
                           !$acc loop seq
                           do eqn=chemxb,chemxe
                               Mass_Diffu_Energy=Mass_Diffu_Energy-h_k(eqn-chemxb+1)*Ys_cell(eqn-chemxb+1)*rho_Vic
+                              Mass_Diffu_Flux(eqn - chemxb + 1) =Mass_Diffu_Flux (eqn - chemxb + 1) - rho_Vic*Ys_cell(eqn - chemxb + 1)
                           end do
 
-                          Mass_Diffu_Flux=Mass_Diffu_Flux -rho_Vic*Ys_cell
                           Mass_Diffu_Energy=lamda_Cell*dT_dx_n+Mass_Diffu_Energy
 
-
-                          flux_src_vf(E_idx)%sf(x, y, z) = flux_src_vf(E_idx)%sf(x, y, z)-Mass_Diffu_Energy
+                          flux_src_vf(E_idx)%sf(x, y, z) = flux_src_vf(E_idx)%sf(x, y, z) - Mass_Diffu_Energy
 
                           !$acc loop seq
                           do eqn=chemxb, chemxe
-                              flux_src_vf(eqn)%sf(x,y,z)=0.0_wp
-                              flux_src_vf(eqn)%sf(x,y,z)= & 
-                              flux_src_vf(eqn)%sf(x,y,z) - &
-                              Mass_diffu_Flux(eqn-chemxb+1)
+                                  flux_src_vf(eqn)%sf(x, y, z) =  & 
+                                  flux_src_vf(eqn)%sf(x, y, z) - &
+                                  Mass_diffu_Flux(eqn - chemxb + 1)
                           end do
                       end do
                   end do

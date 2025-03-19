@@ -1625,7 +1625,7 @@ contains
                                !$acc loop seq
                                do i = chemxb, chemxe
                                    rhs_vf(i)%sf(j, k, l) = &
-                                       rhs_vf(i)%sf(j, k, l) + 1d0/dy(k)* &
+                                       rhs_vf(i)%sf(j, k, l) + 1.0_wp/dy(k)* &
                                        (flux_src_n(i)%sf(j , k-1, l) &
                                        - flux_src_n(i)%sf(j, k, l))
                                end do 
