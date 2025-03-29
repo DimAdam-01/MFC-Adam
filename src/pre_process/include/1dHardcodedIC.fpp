@@ -2,7 +2,7 @@
 
 
     integer, parameter :: nFiles = 14   ! Can be changed to any number
-    integer, parameter :: nRows  = 1025
+    integer, parameter :: nRows  = 100000!
     integer :: f, iter, ios, unit, idx
     real(8) :: x_len, x_step
     character(len=100), dimension(nFiles) :: fileNames
@@ -11,9 +11,7 @@
     real(kind(0d0)), dimension(nRows) :: x_coords
     logical :: files_loaded = .false.
     real(kind(0d0)) :: domain_start, domain_end
-    
     character(len=*), parameter :: init_dir = "/home/pain/ChemMFC/examples/Initial/"
-!character(len=*), parameter :: init_dir = "/home/pain/ChemMFC/examples/Initial/"
     character(len=20) :: file_num_str     ! For storing the file number as a string
     character(len=20) :: zeros_part       ! For the trailing zeros part
     character(len=6), parameter :: zeros_default = "000000"  ! Default zeros (can be changed)
@@ -49,10 +47,10 @@
        ! q_prim_vf(1)%sf(i,0,0)=(1.01325*10**5+2.2d0*0.227d0*800.74d0*exp(-400*((x_cc(i)-0.002/2)/0.002)**2))/(8.314*1000*((0.4+x_cc(i)/0.002*0.2)/2.016+(0.6-x_cc(i)/0.002*0.2)/32) *(300+30*exp(-400*((x_cc(i)-0.002/2)/0.002)**2)))
       ! q_prim_vf(15)%sf(i,0,0)=300+50*exp(-300*((x_cc(i)-0.002/2)/0.002)**2)
     !  q_prim_vf(1)%sf(i,0,0)=(1.01325*10**5)/(8.314*1000*((0.4+x_cc(i)/0.002*0.2)/2.016+(0.6-x_cc(i)/0.002*0.2)/32) *(300+50*exp(-400*((x_cc(i)-0.002/2)/0.002)**2)))
-       q_prim_vf(1)%sf(i,0,0)=0.08+0.08/800.74*(8*exp(-200*((x_cc(i)-0.004/2)/0.004)**2))
-     !  q_prim_vf(5)%sf(i,0,0)=0.4+x_cc(i)/0.004*0.2
-           q_prim_vf(7)%sf(i,0,0)=1.0
-   !  q_prim_vf(8)%sf(i,0,0)=0.6-x_cc(i)/0.004*0.2
+       q_prim_vf(1)%sf(i,0,0)=0.12+0.12/800.74*(8*exp(-200*((x_cc(i)-0.004/2)/0.004)**2))
+       q_prim_vf(5)%sf(i,0,0)=0.4+x_cc(i)/0.004*0.2
+         !  q_prim_vf(5)%sf(i,0,0)=1.0
+     q_prim_vf(8)%sf(i,0,0)=0.6-x_cc(i)/0.004*0.2
     ! q_prim_vf(10)%sf(i,0,0)=0.1
     !q_prim_vf(18)%sf(i,0,0)=0.1
     !q_prim_vf(19)%sf(i,0,0)=0.1

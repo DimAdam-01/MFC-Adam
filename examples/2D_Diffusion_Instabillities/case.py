@@ -20,9 +20,9 @@ ctfile    = 'h2o2.yaml'
 sol_L     = ct.Solution(ctfile)
 sol_L.TPX =  300,  101325, 'H:1'
 
-L    = 0.016
-Nx   = 512
-Ny   = 256
+L    = 0.0200
+Nx   = 400
+Ny   = 200
 dx   = L / Nx
 dy   = dx
 dt   = 3.3e-8
@@ -48,7 +48,7 @@ data = {
     "cyl_coord": "F",
     "dt": dt,
     "t_step_start": 0,
-    "t_step_stop": NT,
+    "t_step_stop": 1,
     "t_step_save": NS,
     "t_step_print": SAVE_COUNT,
     # Simulation Algorithm
@@ -94,7 +94,7 @@ data = {
  
     # Water Patch
     "patch_icpp(1)%geometry": 7,
-    "patch_icpp(1)%hcid": 210,
+    "patch_icpp(1)%hcid": 211,
     "patch_icpp(1)%x_centroid": L /2,
     "patch_icpp(1)%y_centroid": L / 4,
     "patch_icpp(1)%length_x": L,

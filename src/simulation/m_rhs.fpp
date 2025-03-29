@@ -810,18 +810,13 @@ contains
                                                                rhs_vf)
             call nvtxEndRange
 
-         !   call s_compute_chemistry_reaction_flux(rhs_vf, q_cons_qp%vf, q_T_sf, q_prim_qp%vf, idwint)
-
-
-
             if (chemistry) then
                  if (chem_params%diffusion) then
                     call nvtxStartRange("RHS-CHEM-DIFFUSION")
-                    call s_compute_chemistry_diffusion_flux(id,q_prim_qp%vf,flux_src_n(id)%vf,q_T_sf,idwint)
+                    call s_compute_chemistry_diffusion_flux(id, q_prim_qp%vf, flux_src_n(id)%vf, irx, iry, irz)
                     call nvtxEndRange
                  end if
              end if
-
 
             ! RHS additions for viscosity
             if (viscous .or. surface_tension .or. chem_params%diffusion ) then
@@ -971,12 +966,12 @@ contains
         if (idir == 1) then
 
             if (bc_x%beg <= -5 .and. bc_x%beg >= -13) then
-                call s_cbc(q_prim_vf%vf, q_T_sf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, -1, irx, iry, irz)
             end if
 
             if (bc_x%end <= -5 .and. bc_x%end >= -13) then
-                call s_cbc(q_prim_vf%vf, q_T_sf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, 1, irx, iry, irz)
             end if
 
@@ -1080,12 +1075,12 @@ contains
             ! Applying the Riemann fluxes
 
             if (bc_y%beg <= -5 .and. bc_y%beg >= -13) then
-                call s_cbc(q_prim_vf%vf,q_T_sf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, -1, irx, iry, irz)
             end if
 
             if (bc_y%end <= -5 .and. bc_y%end >= -13) then
-                call s_cbc(q_prim_vf%vf,q_T_sf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, 1, irx, iry, irz)
             end if
 
@@ -1254,12 +1249,12 @@ contains
             ! Applying the Riemann fluxes
 
             if (bc_z%beg <= -5 .and. bc_z%beg >= -13) then
-                call s_cbc(q_prim_vf%vf, q_T_sf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, -1, irx, iry, irz)
             end if
 
             if (bc_z%end <= -5 .and. bc_z%end >= -13) then
-                call s_cbc(q_prim_vf%vf,q_T_sf, flux_n(idir)%vf, &
+                call s_cbc(q_prim_vf%vf, flux_n(idir)%vf, &
                            flux_src_n(idir)%vf, idir, 1, irx, iry, irz)
             end if
 
@@ -1626,7 +1621,7 @@ contains
                                do i = chemxb, chemxe
                                    rhs_vf(i)%sf(j, k, l) = &
                                        rhs_vf(i)%sf(j, k, l) + 1.0_wp/dy(k)* &
-                                       (flux_src_n(i)%sf(j , k-1, l) &
+                                       (flux_src_n(i)%sf(j , k - 1, l) &
                                        - flux_src_n(i)%sf(j, k, l))
                                end do 
                             end if

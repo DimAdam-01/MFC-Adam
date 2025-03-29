@@ -25,14 +25,14 @@ sol_L     = ct.Solution(ctfile)
 sol_L.TPX =  300,  8000, 'O2:2,N2:2,H2O:5'
 
 L    = 0.016
-Nx   = 1024
+Nx   = 350
 dx   = L / Nx
-dt   = 0.1e-8
+dt   = 3.0e-8
 Tend = 0.60e-4
 
 NT         = int(Tend / dt)
-SAVE_COUNT = 800
-NS         = 800
+SAVE_COUNT = 80
+NS         = 80
 case = {
     # Logistics ================================================================
     'run_time_info'                : 'T',
@@ -94,7 +94,7 @@ case = {
     'patch_icpp(1)%alpha(1)'       : 1,
     'patch_icpp(1)%alpha_rho(1)'   :  '1',
      # Fluids Physical Parameters ===============================================
-    'fluid_pp(1)%gamma'            : 1.0E+00/(1.9326E+00-1.0E+00),
+    'fluid_pp(1)%gamma'            : 1.0E+00/(1.5E+00-1.0E+00),
     'fluid_pp(1)%pi_inf'           : 0,
  #   'fluid_pp(1)%Re(1)'            : 20000000,
     # ==========================================================================

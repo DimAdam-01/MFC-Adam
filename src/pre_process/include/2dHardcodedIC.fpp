@@ -4,14 +4,11 @@
     real(wp) :: r, rmax, gam, umax, p0
     real(wp) :: rhoH, rhoL, pRef, pInt, h, lam, wl, amp, intH, intL, alph
     real(wp) :: x1c,y1c,x2c,y2c,Rvortex,r1c,r2c,cvortex,u1c,u2c,v1c,v2c,u,pres! This are coordinates for vortices
-    real(wp) :: y1,y2,y3,y4,y5,y6,y7,y8,Lx,Ly
+    real(wp) :: y1,y2,y3,y4,y5,y6,y7,y8,Lx,Ly,Sl,lambda
     integer  :: Nx1,Nx2,Ny1,Ny2,Ny3,Ny4,Ny5,Ny6
 
-   
-
-
     integer, parameter :: nFiles = 15   ! Can be changed to any number
-    integer, parameter :: xRows  = 1025
+    integer, parameter :: xRows  = 100000!
     !integer, parameter :: yRows  = 0
     integer, parameter :: Nrows  = xRows
     integer :: f, iter, ios, unit, idx,lol
@@ -22,13 +19,11 @@
     real(kind(0d0)), dimension(nRows) :: x_coords
     logical :: files_loaded = .false.
     real(kind(0d0)) :: domain_start, domain_end
-    
-  !  character(len=*), parameter :: init_dir = "/home/pain/MFC-Adam/examples/1D_reactive_shocktube/D/"
-   character(len=*), parameter :: init_dir = "/home/pain/MFC-Adam/examples/1D_Dilution_Flame/D/"
-
-  character(len=20) :: file_num_str     ! For storing the file number as a string
+    !  character(len=*), parameter :: init_dir = "/home/pain/MFC-Adam/examples/1D_reactive_shocktube/D/"
+    character(len=*), parameter :: init_dir = "/home/pain/MFC-Adam/examples/1D_Diffusion_Flame/D/"
+    character(len=20) :: file_num_str     ! For storing the file number as a string
     character(len=20) :: zeros_part       ! For the trailing zeros part
-    character(len=6), parameter :: zeros_default = "030400"  ! Default zeros (can be changed)
+    character(len=6), parameter :: zeros_default = "014999"  ! Default zeros (can be changed)
 
     eps = 1e-9_wp
 
@@ -256,18 +251,13 @@
 
      ! u2c=-cvortex*((y_cc(j)-y2c))*exp(-r2c/(rvortex)**(2.0_wp)/2.0_wp)
      ! v2c=cvortex*((x_cc(j)-x2c))*exp(-r2c/(rvortex)**(2.0_wp)/2.0_wp)
-    pres = 0.96325_wp * 10.0_wp**(5.0_wp) * (1.0_wp+sqrt(u1c**2.0_wp+v1c**2.0_wp))
+     pres = 0.96325_wp * 10.0_wp**(5.0_wp) * (1.0_wp+sqrt(u1c**2.0_wp+v1c**2.0_wp))
 
-       q_prim_vf(1)%sf(i,j,0)= pres / ( 300.0_wp * 287.0_wp)
-          
-      q_prim_vf(2)%sf(i,j,0)=u+u1c
-      q_prim_vf(3)%sf(i,j,0)=v1c
-
-
-
-      q_prim_vf(4)%sf(i,j,0)=pres
-
-      q_prim_vf(5)%sf(i,j,0)=1.0_wp
+     q_prim_vf(1)%sf(i,j,0)= pres / ( 300.0_wp * 287.0_wp)
+     q_prim_vf(2)%sf(i,j,0)=u+u1c
+     q_prim_vf(3)%sf(i,j,0)=v1c
+     q_prim_vf(4)%sf(i,j,0)=pres
+     q_prim_vf(5)%sf(i,j,0)=1.0_wp
 
     case (209)
         if (.not. files_loaded) then
@@ -439,7 +429,7 @@ end do
       r1c=(x_cc(i)-x1c)**(2.0_wp)+(y_cc(j)-y1c)**(2.0_wp)
       r2c=(x_cc(i)-x2c)**(2.0_wp)+(y_cc(j)-y2c)**(2.0_wp)
       rvortex=0.0005_wp 
-      cvortex=3.0_wp
+      cvortex=6000.0_wp
 
       u1c=-cvortex*((y_cc(j)-y1c))*exp(-r1c/(2.0_wp*rvortex**2.0_wp)) 
       v1c=cvortex*((x_cc(i)-x1c))*exp(-r1c/(2.0_wp*rvortex**2.0_wp))
@@ -449,6 +439,71 @@ end do
       q_prim_vf(2)%sf(i,j,0)=q_prim_vf(2)%sf(i,j,0)+u1c+u2c
       q_prim_vf(3)%sf(i,j,0)=v1c+v2c
   
+
+   case (211) !2D Boundary Lido for multicomponent transport problems
+
+        if (.not. files_loaded) then
+            ! Print status message
+            print *, "Loading all data files..."
+            
+            do f = 1, nFiles
+              ! Open the file for reading
+                open(newunit=unit, file=trim(fileNames(f)), status='old', action='read', iostat=ios)
+                if (ios /= 0) then
+                    print *, "Error opening file: ", trim(fileNames(f))
+                    cycle  ! Skip this file on error
+                endif
+                
+                ! Read all rows at once into memory
+                do iter = 1, nRows
+                    read(unit, *, iostat=ios) x_coords(iter), stored_values(iter, f)
+                    if (ios /= 0) then
+                        print *, "Error reading file ", trim(fileNames(f)), " at row ", iter
+                        exit  ! Exit loop on error
+                    endif
+                end do
+                close(unit)
+            end do
+            
+            ! Calculate domain information for mapping
+            domain_start = x_coords(1)
+            domain_end = x_coords(nRows)
+            x_step = (domain_end - domain_start) / (nRows - 1)
+            
+            print *, "All data files loaded. Domain range:", domain_start, "to", domain_end
+            files_loaded = .true.
+
+        endif
+        
+        ! Simple direct mapping - find the closest index without interpolation
+        idx = nint((x_cc(i) - domain_start) / x_step) + 1
+        
+        ! Boundary protection
+        ! if (idx < 1) idx = 1
+        ! if (idx > nRows) idx = nRows
+        
+        ! Assign values directly from stored data for each file
+      do f = 1, nFiles-1
+          if (f > 2) then
+          lol = 1
+          else 
+        lol = 0
+          end if
+          q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(i+1, f)
+      end do
+
+! Set element 3 to zero (as requested)
+ q_prim_vf(3)%sf(i, j, 0) = 0.0_wp
+!
+
+    
+
+
+      q_prim_vf(2)%sf(i,j,0)=q_prim_vf(2)%sf(i,j,0)+0.1_wp*Sl*sin(2.0_wp*3.141596265_wp*x_cc(i)/(13.3_wp*90.0_wp*10**(-6)))
+     
+        if (j.eq. 10) then
+        print *, x_cc(i)
+      end if
       case default
         if (proc_rank == 0) then
             call s_int_to_str(patch_id, iStr)

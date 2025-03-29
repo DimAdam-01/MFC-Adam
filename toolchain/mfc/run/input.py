@@ -80,8 +80,7 @@ class MFCInputFile(Case):
             pyro.FortranCodeGenerator().generate(
                 "m_thermochem",
                 self.get_cantera_solution(),
-                pyro.CodeGenerationOptions(scalar_type=real_type),
-            ),
+                pyro.CodeGenerationOptions(scalar_type=real_type),            ),
             True
         )
 
