@@ -1,31 +1,31 @@
 #:def Hardcoded2DVariables()
-
     real(wp) :: eps
     real(wp) :: r, rmax, gam, umax, p0
     real(wp) :: rhoH, rhoL, pRef, pInt, h, lam, wl, amp, intH, intL, alph
     real(wp) :: x1c,y1c,x2c,y2c,Rvortex,r1c,r2c,cvortex,u1c,u2c,v1c,v2c,u,pres! This are coordinates for vortices
-    real(wp) :: y1,y2,y3,y4,y5,y6,y7,y8,Lx,Ly,Sl,lambda
-    integer  :: Nx1,Nx2,Ny1,Ny2,Ny3,Ny4,Ny5,Ny6
+    real(wp) :: y1,y2,y3,y4,y5,y6,y7,y8,Lx,Ly,Sl,lambda,temp_val
+    integer  :: Nx1,Nx2,Ny1,Ny2,Ny3,Ny4,Ny5,Ny6,mpi_size,ierr,global_idx
+    integer  :: mpi_rank,lol,idx,stdout,i_min,i_max,local_x_min,local_x_max
+integer :: local_start, local_end, local_n
 
-    integer, parameter :: nFiles = 15   ! Can be changed to any number
-    integer, parameter :: xRows  = 100000!
-    !integer, parameter :: yRows  = 0
-    integer, parameter :: Nrows  = xRows
-    integer :: f, iter, ios, unit, idx,lol
-    real(8) :: x_len, x_step
-    character(len=100), dimension(nFiles) :: fileNames
-    ! Arrays to store all data from files - read once, use many times
-    real(kind(0d0)), dimension(nRows, nFiles) :: stored_values
-    real(kind(0d0)), dimension(nRows) :: x_coords
-    logical :: files_loaded = .false.
-    real(kind(0d0)) :: domain_start, domain_end
-    !  character(len=*), parameter :: init_dir = "/home/pain/MFC-Adam/examples/1D_reactive_shocktube/D/"
-    character(len=*), parameter :: init_dir = "/home/pain/MFC-Adam/examples/1D_Diffusion_Flame/D/"
-    character(len=20) :: file_num_str     ! For storing the file number as a string
-    character(len=20) :: zeros_part       ! For the trailing zeros part
-    character(len=6), parameter :: zeros_default = "014999"  ! Default zeros (can be changed)
+  integer, parameter :: nFiles = 15
+  integer, parameter :: xRows  = 1201
+  integer, parameter :: Nrows  = xRows
 
-    eps = 1e-9_wp
+  ! Variables for file reading and domain data
+  real(wp)                ::  domain_start, domain_end, x_step
+  real(wp), dimension(Nrows)            :: x_coords
+  real(wp), dimension(Nrows, nFiles)      :: stored_values
+  character(len=100), dimension(nFiles)   :: fileNames
+  character(len=20)       :: file_num_str
+  character(len=6), parameter :: zeros_default = "045360"
+  character(len=*), parameter :: init_dir = "/home/pain/MFC-Adam/examples/1D_reactive_shocktube/D/"
+  integer                 :: f, iter, ios, unit
+  logical                 :: files_loaded
+
+  files_loaded=.false.
+
+  eps = 1e-9_wp
 
     do f = 1, nFiles
         ! Convert file number to string with proper formatting
@@ -260,6 +260,16 @@
      q_prim_vf(5)%sf(i,j,0)=1.0_wp
 
     case (209)
+   
+        ! Determine the rank’s local domain.
+        ! (Assuming local_x_min and local_x_max are known from the simulation domain and rank offset)
+        ! For example, they might be computed as:
+        ! local_x_min = simulation_x(1) + rank_offset
+        ! local_x_max = local_x_min + (n_local_cells - 1) * delta_x
+        !
+        ! Compute indices within the file corresponding to the rank’s domain:
+                
+        ! Now read the necessary portion of each file for this rank
         if (.not. files_loaded) then
             ! Print status message
             print *, "Loading all data files..."
@@ -290,33 +300,34 @@
             
             print *, "All data files loaded. Domain range:", domain_start, "to", domain_end
             files_loaded = .true.
-
-        endif
-        
-        ! Simple direct mapping - find the closest index without interpolation
+        endif            
+    ! Now, for each cell in the simulation, check if its coordinate falls within the file domain
+    if (x_cc(i).ge. domain_start-x_step/2.0_wp.and. x_cc(i) .le. domain_end) then
+        ! Calculate the index in the file data array corresponding to x_cc(i)
         idx = nint((x_cc(i) - domain_start) / x_step) + 1
         
-        ! Boundary protection
-        ! if (idx < 1) idx = 1
-        ! if (idx > nRows) idx = nRows
-        
-        ! Assign values directly from stored data for each file
- do f = 1, nFiles-1
-    if (f > 2) then
-        lol = 1
-    else 
-        lol = 0
-    end if
-    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(i+1, f)
-end do
+        ! Ensure idx is within valid bounds
+        if (idx < 1) idx = 1
+        if (idx > Nrows) idx = Nrows
 
-! Set element 3 to zero (as requested)
-q_prim_vf(3)%sf(i, j, 0) = 0.0_wp
+        ! Assign values from stored data for each file (with your small adjustment for f > 2)
+        do f = 1, nFiles - 1
+            if (f > 2) then
+                lol = 1
+            else 
+                lol = 0
+            end if
+            q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(idx, f)
+        enddo
 
-! Create rectangular pockets with unburnt fuel
-if (x_cc(i) < 0.0375_wp .and. x_cc(i) > 0.0335_wp) then
+        ! Set element 3 explicitly to zero
+        q_prim_vf(3)%sf(i, j, 0) = 0.0_wp
+    endif
+
+    ! Create rectangular pockets with unburnt fuel
+if (x_cc(i) < 0.05200_wp .and. x_cc(i) > 0.0470_wp) then
     ! First pocket
-    if (y_cc(j) > 0.04_wp/4.0_wp .and. y_cc(j) < 0.04_wp/4.0_wp+0.04_wp/9.0_wp) then
+    if (y_cc(j) > 0.06_wp/4.0_wp .and. y_cc(j) < 0.06_wp/4.0_wp+0.06_wp/9.0_wp) then
         do f = 1, sys_size-1
             if (f /= 2 ) then
                 ! Apply the same lol offset
@@ -327,12 +338,12 @@ if (x_cc(i) < 0.0375_wp .and. x_cc(i) > 0.0335_wp) then
                 end if
                 
                 ! Special handling for pressure (index 4 in 2D system)
-                    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(350, f)
+                    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(nRows-5, f)
             end if
         end do
         
     ! Second pocket
-    else if (y_cc(j) > 0.04_wp/2.0_wp-0.04_wp/18.0_wp .and. y_cc(j) < 0.04_wp/2.0_wp+0.04_wp/18.0_wp) then
+    else if (y_cc(j) > 0.06_wp/2.0_wp-0.06_wp/18.0_wp .and. y_cc(j) < 0.06_wp/2.0_wp+0.06_wp/18.0_wp) then
         do f = 1, sys_size-1
             if (f /= 2 ) then
                 ! Apply the same lol offset
@@ -343,12 +354,12 @@ if (x_cc(i) < 0.0375_wp .and. x_cc(i) > 0.0335_wp) then
                 end if
                 
                 ! Special handling for pressure
-                    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(350, f)
+                    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(nRows-5, f)
             end if
         end do
         
     ! Third pocket
-    else if (y_cc(j) < 3.0_wp*0.04_wp/4.0_wp .and. y_cc(j) > 3.0_wp*0.04_wp/4.0_wp-0.04_wp/9.0_wp) then
+    else if (y_cc(j) < 3.0_wp*0.06_wp/4.0_wp .and. y_cc(j) > 3.0_wp*0.06_wp/4.0_wp-0.06_wp/9.0_wp) then
         do f = 1, sys_size-1
             if (f /= 2  )then
                 ! Apply the same lol offset
@@ -359,7 +370,7 @@ if (x_cc(i) < 0.0375_wp .and. x_cc(i) > 0.0335_wp) then
                 end if
                 
                 ! Special handling for pressure
-                    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(350, f)
+                    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(nRows-5, f)
             end if
         end do
     end if
@@ -440,12 +451,12 @@ end do
       q_prim_vf(3)%sf(i,j,0)=v1c+v2c
   
 
-   case (211) !2D Boundary Lido for multicomponent transport problems
+  case (211) !2D Boundary Lido for multicomponent transport problems
 
         if (.not. files_loaded) then
             ! Print status message
             print *, "Loading all data files..."
-            
+
             do f = 1, nFiles
               ! Open the file for reading
                 open(newunit=unit, file=trim(fileNames(f)), status='old', action='read', iostat=ios)
@@ -453,7 +464,7 @@ end do
                     print *, "Error opening file: ", trim(fileNames(f))
                     cycle  ! Skip this file on error
                 endif
-                
+
                 ! Read all rows at once into memory
                 do iter = 1, nRows
                     read(unit, *, iostat=ios) x_coords(iter), stored_values(iter, f)
@@ -464,46 +475,38 @@ end do
                 end do
                 close(unit)
             end do
-            
+
             ! Calculate domain information for mapping
             domain_start = x_coords(1)
             domain_end = x_coords(nRows)
             x_step = (domain_end - domain_start) / (nRows - 1)
-            
+
             print *, "All data files loaded. Domain range:", domain_start, "to", domain_end
             files_loaded = .true.
 
         endif
-        
+
         ! Simple direct mapping - find the closest index without interpolation
         idx = nint((x_cc(i) - domain_start) / x_step) + 1
-        
+
         ! Boundary protection
         ! if (idx < 1) idx = 1
         ! if (idx > nRows) idx = nRows
-        
+
         ! Assign values directly from stored data for each file
-      do f = 1, nFiles-1
-          if (f > 2) then
-          lol = 1
-          else 
+ do f = 1, nFiles-1
+    if (f > 2) then
+        lol = 1
+    else
         lol = 0
-          end if
-          q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(i+1, f)
-      end do
+    end if
+    q_prim_vf(f+lol)%sf(i, j, 0) = stored_values(i+1, f)
+end do
 
 ! Set element 3 to zero (as requested)
- q_prim_vf(3)%sf(i, j, 0) = 0.0_wp
-!
-
-    
-
-
-      q_prim_vf(2)%sf(i,j,0)=q_prim_vf(2)%sf(i,j,0)+0.1_wp*Sl*sin(2.0_wp*3.141596265_wp*x_cc(i)/(13.3_wp*90.0_wp*10**(-6)))
-     
-        if (j.eq. 10) then
-        print *, x_cc(i)
-      end if
+q_prim_vf(3)%sf(i, j, 0) = 0.0_wp
+    ! print *, y_cc(0)
+     q_prim_vf(2)%sf(i,j,0)=q_prim_vf(2)%sf(i,j,0)+(0.1_wp*0.00001*366.11_wp)*sin(2.0_wp*pi*(y_cc(j)*6.0_wp/(0.0292888_wp/2.0_wp)))
       case default
         if (proc_rank == 0) then
             call s_int_to_str(patch_id, iStr)

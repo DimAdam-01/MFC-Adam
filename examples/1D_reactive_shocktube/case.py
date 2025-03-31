@@ -37,7 +37,7 @@ u_l = 0
 u_r = -487.34
 
 L = 0.12
-Nx = 400 * args.scale
+Nx = 1200 * args.scale
 dx = L / Nx
 dt = dx / abs(u_r) * 0.02
 Tend = 230e-6

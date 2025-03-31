@@ -116,6 +116,9 @@ contains
             #:for VAR in [ 'model_translate', 'model_scale', 'model_rotate']
                 call MPI_BCAST(patch_ib(i)%${VAR}$, size(patch_ib(i)%${VAR}$), mpi_p, 0, MPI_COMM_WORLD, ierr)
             #:endfor
+            if (chemistry) then
+                call MPI_BCAST(patch_icpp(i)%Y, size(patch_icpp(i)%Y), mpi_p, 0, MPI_COMM_WORLD, ierr)
+            end if
         end do
 
         ! Fluids physical parameters

@@ -48,7 +48,7 @@ data = {
     "cyl_coord": "F",
     "dt": dt,
     "t_step_start": 0,
-    "t_step_stop": 1,
+    "t_step_stop": 4,
     "t_step_save": NS,
     "t_step_print": SAVE_COUNT,
     # Simulation Algorithm
@@ -72,7 +72,7 @@ data = {
     "bc_y%end": -1,
     "num_patches": 1,
     "num_fluids": 1,
-    "viscous": "T",
+    "viscous": "F",
     'chemistry'                    : 'T' if not args.chemistry else 'T',
     'chem_params%diffusion'        : 'T',
     'chem_params%reactions'        : 'T',
@@ -80,14 +80,14 @@ data = {
     "format": 1,
     "precision": 2,
     "prim_vars_wrt": "T",
-    "parallel_io": "T",
+    "parallel_io": "F",
  "chem_wrt_T"                  : "T",
     "omega_wrt(3)"    :"T",
     "fd_order"        : 2,
     # Fluid Parameters (Heavy Gas)
     "fluid_pp(1)%gamma": 1.0e00 / (1.4e00 - 1.0e00),
     "fluid_pp(1)%pi_inf": 0.0e00,
-    "fluid_pp(1)%Re(1)": 100000,
+    #"fluid_pp(1)%Re(1)": 100000,
     # Fluid Parameters (Light Gas)
 
     # Body Forces

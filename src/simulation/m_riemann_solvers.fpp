@@ -44,8 +44,8 @@ module m_riemann_solvers
         gas_constant, get_mixture_molecular_weight, &
         get_mixture_specific_heat_cv_mass, get_mixture_energy_mass, &
         get_species_specific_heats_r, get_species_enthalpies_rt, &
-        get_mixture_specific_heat_cp_mass, get_mixture_viscosity_mixavg, &
-        get_species_viscosities, get_mole_fractions
+        get_mixture_specific_heat_cp_mass,get_mixture_viscosity_mixavg, &
+        get_species_viscosities
 
     implicit none
 
@@ -314,6 +314,7 @@ contains
         real(wp) :: R_gas_L, R_gas_R
         real(wp) :: Cp_L, Cp_R
         real(wp) :: Cv_L, Cv_R
+        real(wp) :: Gamm_L, Gamm_R
         real(wp) :: gamma_L, gamma_R
         real(wp) :: pi_inf_L, pi_inf_R
         real(wp) :: qv_L, qv_R
@@ -485,53 +486,53 @@ contains
                                     Ys_R(i - chemxb + 1) = qR_prim_rs${XYZ}$_vf(j + 1, k, l, i)
                                 end do
 
-                                    call get_mixture_molecular_weight(Ys_L, MW_L)
-                                    call get_mixture_molecular_weight(Ys_R, MW_R)
+                                call get_mixture_molecular_weight(Ys_L, MW_L)
+                                call get_mixture_molecular_weight(Ys_R, MW_R)
 
-                                    R_gas_L = gas_constant/MW_L
-                                    R_gas_R = gas_constant/MW_R
+                                Xs_L(:) = Ys_L(:)*MW_L/molecular_weights(:)
+                                Xs_R(:) = Ys_R(:)*MW_R/molecular_weights(:)
 
-                                    T_L = pres_L/rho_L/R_gas_L
-                                    T_R = pres_R/rho_R/R_gas_R
+                                R_gas_L = gas_constant/MW_L
+                                R_gas_R = gas_constant/MW_R
+
+                                T_L = pres_L/rho_L/R_gas_L
+                                T_R = pres_R/rho_R/R_gas_R
+
+                                call get_species_specific_heats_r(T_L, Cp_iL)
+                                call get_species_specific_heats_r(T_R, Cp_iR)
 
                                 if (chem_params%gamma_method == 1) then
-                                    !> gamma_method = 1: Ref. Section 2.3.1 Formulation of doi:10.7907/ZKW8-ES97.
-                                    call get_mole_fractions(MW_L,Ys_L,Xs_L)
-                                    call get_mole_fractions(MW_R,Ys_R,Xs_R)
-
-                                    call get_species_specific_heats_r(T_L, Cp_iL)
-                                    call get_species_specific_heats_r(T_R, Cp_iR)
-
+                                    ! gamma_method = 1: Ref. Section 2.3.1 Formulation of doi:10.7907/ZKW8-ES97.
                                     Gamma_iL = Cp_iL/(Cp_iL - 1.0_wp)
                                     Gamma_iR = Cp_iR/(Cp_iR - 1.0_wp)
 
                                     gamma_L = sum(Xs_L(:)/(Gamma_iL(:) - 1.0_wp))
                                     gamma_R = sum(Xs_R(:)/(Gamma_iR(:) - 1.0_wp))
-                                  
                                 else if (chem_params%gamma_method == 2) then
-                                    !> gamma_method = 2: c_p / c_v where c_p, c_v are specific heats.
+                                    ! gamma_method = 2: c_p / c_v where c_p, c_v are specific heats.
                                     call get_mixture_specific_heat_cp_mass(T_L, Ys_L, Cp_L)
                                     call get_mixture_specific_heat_cp_mass(T_R, Ys_R, Cp_R)
                                     call get_mixture_specific_heat_cv_mass(T_L, Ys_L, Cv_L)
                                     call get_mixture_specific_heat_cv_mass(T_R, Ys_R, Cv_R)
 
-                                    gamma_L = 1.0_wp/(Cp_L/Cv_L - 1.0_wp)
-                                    gamma_R = 1.0_wp/(Cp_R/Cv_R - 1.0_wp)
+                                    Gamm_L = Cp_L/Cv_L
+                                    gamma_L = 1.0_wp/(Gamm_L - 1.0_wp)
+                                    Gamm_R = Cp_R/Cv_R
+                                    gamma_R = 1.0_wp/(Gamm_R - 1.0_wp)
                                 end if
 
-                                    call get_mixture_energy_mass(T_L, Ys_L, E_L)
-                                    call get_mixture_energy_mass(T_R, Ys_R, E_R)
+                                call get_mixture_energy_mass(T_L, Ys_L, E_L)
+                                call get_mixture_energy_mass(T_R, Ys_R, E_R)
 
-                                    E_L = rho_L*E_L + 0.5_wp*rho_L*vel_L_rms
-                                    E_R = rho_R*E_R + 0.5_wp*rho_R*vel_R_rms
-
-                                    H_L = (E_L + pres_L)/rho_L
-                                    H_R = (E_R + pres_R)/rho_R
-                              else
-                                    E_L = gamma_L*pres_L + pi_inf_L + 0.5_wp*rho_L*vel_L_rms + qv_L
-                                    E_R = gamma_R*pres_R + pi_inf_R + 0.5_wp*rho_R*vel_R_rms + qv_R
-                                    H_L = (E_L + pres_L)/rho_L
-                                    H_R = (E_R + pres_R)/rho_R
+                                E_L = rho_L*E_L + 5e-1*rho_L*vel_L_rms
+                                E_R = rho_R*E_R + 5e-1*rho_R*vel_R_rms
+                                H_L = (E_L + pres_L)/rho_L
+                                H_R = (E_R + pres_R)/rho_R
+                            else
+                                E_L = gamma_L*pres_L + pi_inf_L + 5e-1*rho_L*vel_L_rms + qv_L
+                                E_R = gamma_R*pres_R + pi_inf_R + 5e-1*rho_R*vel_R_rms + qv_R
+                                H_L = (E_L + pres_L)/rho_L
+                                H_R = (E_R + pres_R)/rho_R
                             end if
 
                             ! elastic energy update
@@ -617,12 +618,11 @@ contains
                                     call get_mixture_viscosity_mixavg(T_R, Ys_R, Re_R(1))
                                     Re_L(1) = 1.0_wp/Re_L(1)
                                     Re_R(1) = 1.0_wp/Re_R(1)
-                                else
-                                    !$acc loop seq
-                                    do i = 1, 2
-                                        Re_avg_rs${XYZ}$_vf(j, k, l, i) = 2._wp/(1._wp/Re_L(i) + 1._wp/Re_R(i))
-                                    end do
                                 end if
+                                !$acc loop seq
+                                do i = 1, 2
+                                    Re_avg_rs${XYZ}$_vf(j, k, l, i) = 2._wp/(1._wp/Re_L(i) + 1._wp/Re_R(i))
+                                end do
                             end if
 
                             if (wave_speeds == 1) then
@@ -2338,8 +2338,14 @@ contains
                                         Ys_R(i - chemxb + 1) = qR_prim_rs${XYZ}$_vf(j + 1, k, l, i)
                                     end do
 
+                                    if (k .eq. 100) then
+                                    !  print *, Ys_L(1),x_cc(j),j
+                                    end if
+
                                     call get_mixture_molecular_weight(Ys_L, MW_L)
                                     call get_mixture_molecular_weight(Ys_R, MW_R)
+
+
 
                                     R_gas_L = gas_constant/MW_L
                                     R_gas_R = gas_constant/MW_R
@@ -2347,20 +2353,18 @@ contains
                                     T_L = pres_L/rho_L/R_gas_L
                                     T_R = pres_R/rho_R/R_gas_R
 
+                                    call get_species_specific_heats_r(T_L, Cp_iL)
+                                    call get_species_specific_heats_r(T_R, Cp_iR)
+
                                     if (chem_params%gamma_method == 1) then
                                         !> gamma_method = 1: Ref. Section 2.3.1 Formulation of doi:10.7907/ZKW8-ES97.
                                         call get_mole_fractions(MW_L,Ys_L,Xs_L)
                                         call get_mole_fractions(MW_R,Ys_R,Xs_R)
-
-                                        call get_species_specific_heats_r(T_L, Cp_iL)
-                                        call get_species_specific_heats_r(T_R, Cp_iR)
-
                                         Gamma_iL = Cp_iL/(Cp_iL - 1.0_wp)
                                         Gamma_iR = Cp_iR/(Cp_iR - 1.0_wp)
 
                                         gamma_L = sum(Xs_L(:)/(Gamma_iL(:) - 1.0_wp))
                                         gamma_R = sum(Xs_R(:)/(Gamma_iR(:) - 1.0_wp))
-                                    
                                     else if (chem_params%gamma_method == 2) then
                                         !> gamma_method = 2: c_p / c_v where c_p, c_v are specific heats.
                                         call get_mixture_specific_heat_cp_mass(T_L, Ys_L, Cp_L)
@@ -2368,8 +2372,10 @@ contains
                                         call get_mixture_specific_heat_cv_mass(T_L, Ys_L, Cv_L)
                                         call get_mixture_specific_heat_cv_mass(T_R, Ys_R, Cv_R)
 
-                                        gamma_L = 1.0_wp/(Cp_L/Cv_L - 1.0_wp)
-                                        gamma_R = 1.0_wp/(Cp_R/Cv_R - 1.0_wp)
+                                        Gamm_L = Cp_L/Cv_L
+                                        gamma_L = 1.0_wp/(Gamm_L - 1.0_wp)
+                                        Gamm_R = Cp_R/Cv_R
+                                        gamma_R = 1.0_wp/(Gamm_R - 1.0_wp)
                                     end if
 
                                     call get_mixture_energy_mass(T_L, Ys_L, E_L)
@@ -2377,11 +2383,11 @@ contains
 
                                     E_L = rho_L*E_L + 5e-1*rho_L*vel_L_rms
                                     E_R = rho_R*E_R + 5e-1*rho_R*vel_R_rms
-
                                     H_L = (E_L + pres_L)/rho_L
                                     H_R = (E_R + pres_R)/rho_R
                                 else
                                     E_L = gamma_L*pres_L + pi_inf_L + 5e-1*rho_L*vel_L_rms + qv_L
+
                                     E_R = gamma_R*pres_R + pi_inf_R + 5e-1*rho_R*vel_R_rms + qv_R
 
                                     H_L = (E_L + pres_L)/rho_L
@@ -2466,12 +2472,11 @@ contains
                                         call get_mixture_viscosity_mixavg(T_R, Ys_R, Re_R(1))
                                         Re_L(1) = 1.0_wp/Re_L(1)
                                         Re_R(1) = 1.0_wp/Re_R(1)
-                                    else
-                                        !$acc loop seq
-                                        do i = 1, 2
-                                            Re_avg_rs${XYZ}$_vf(j, k, l, i) = 2._wp/(1._wp/Re_L(i) + 1._wp/Re_R(i))
-                                        end do
                                     end if
+                                    !$acc loop seq
+                                    do i = 1, 2
+                                        Re_avg_rs${XYZ}$_vf(j, k, l, i) = 2._wp/(1._wp/Re_L(i) + 1._wp/Re_R(i))
+                                    end do
                                 end if
 
                                 if (low_Mach == 2) then
@@ -3321,19 +3326,18 @@ contains
                         end do
                     end do
                 end do
+               
+               !$acc parallel loop collapse(4) gang vector default(present)
+               do i = chemxb, chemxe
+                  do l = is3%beg, is3%end
+                      do k = is2%beg, is2%end
+                          do j = is1%beg, is1%end
+                              flux_src_vf(i)%sf(j, k, l) = 0._wp
+                          end do
+                      end do
+                  end do
+               end do
 
-                if (chemistry) then
-                    !$acc parallel loop collapse(4) gang vector default(present)
-                    do i = chemxb, chemxe
-                        do l = is3%beg, is3%end
-                            do k = is2%beg, is2%end
-                                do j = is1%beg, is1%end
-                                    flux_src_vf(i)%sf(j, k, l) = 0._wp
-                                end do
-                            end do
-                        end do
-                    end do
-                end if
             end if
 
             if (qbmm) then
@@ -3365,18 +3369,17 @@ contains
                     end do
                 end do
 
-               if (chemistry) then
-                  !$acc parallel loop collapse(4) gang vector default(present)
-                  do i = chemxb, chemxe
-                      do l = is3%beg, is3%end
-                          do k = is2%beg, is2%end
-                              do j = is1%beg, is1%end
-                                  flux_src_vf(i)%sf(k, j, l) = 0._wp
-                              end do
+               !$acc parallel loop collapse(4) gang vector default(present)
+               do i = chemxb, chemxe
+                  do l = is3%beg, is3%end
+                      do k = is2%beg, is2%end
+                          do j = is1%beg, is1%end
+                              flux_src_vf(i)%sf(k, j, l) = 0._wp
                           end do
                       end do
                   end do
-               end if
+               end do
+
             end if
 
             if (qbmm) then
@@ -3406,19 +3409,18 @@ contains
                         end do
                     end do
                 end do
-                
-                if (chemistry) then
-                  !$acc parallel loop collapse(4) gang vector default(present)
-                  do i = chemxb, chemxe
-                      do l = is3%beg, is3%end
-                          do k = is2%beg, is2%end
-                              do j = is1%beg, is1%end
-                                  flux_src_vf(i)%sf(j, k, l) = 0._wp
-                              end do
+
+               !$acc parallel loop collapse(4) gang vector default(present)
+               do i = chemxb, chemxe
+                  do l = is3%beg, is3%end
+                      do k = is2%beg, is2%end
+                          do j = is1%beg, is1%end
+                              flux_src_vf(i)%sf(j, k, l) = 0._wp
                           end do
                       end do
                   end do
-               end if
+               end do
+
             end if
 
             if (qbmm) then
@@ -4029,7 +4031,11 @@ contains
 
                             dvel_avg_dx(1) = 5e-1_wp*(dvelL_dx_vf(1)%sf(j, k, l) &
                                                       + dvelR_dx_vf(1)%sf(j + 1, k, l))
+                            if (j .eq. 10) then
+                              !print *, x_cc(isx%beg), x_cc(isx%end)
+                              print *, y_cc(isy%beg), x_cc(isy%end), 'yyyyy'
 
+                          end if
                             tau_Re(1, 1) = (4._wp/3._wp)*dvel_avg_dx(1)/ &
                                            Re_avg_rsx_vf(j, k, l, 1)
 
@@ -4213,12 +4219,20 @@ contains
 
             ! Viscous Stresses in y-direction
         elseif (norm_dir == 2) then
+  
+
 
             if (shear_stress) then              ! Shear stresses
                 !$acc parallel loop collapse(3) gang vector default(present) private( dvel_avg_dx, dvel_avg_dy, tau_Re)
                 do l = isz%beg, isz%end
                     do k = isy%beg, isy%end
                         do j = isx%beg, isx%end
+
+                                      if (j .eq. 10) then
+                              !print *, x_cc(isx%beg), x_cc(isx%end)
+                              print *, y_cc(isy%beg), x_cc(isy%end), 'yyyyy'
+
+                          end if
 
                             !$acc loop seq
                             do i = 1, 2

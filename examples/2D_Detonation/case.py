@@ -23,13 +23,13 @@ sol_R.DPX = 0.18075, 35594, 'H2:2,O2:1,AR:7'
 u_l = 0
 u_r = -487.34
 
-L  = 0.08
-Nx = 400
-Ny = 100
+L  = 0.24
+Nx = 2400
+Ny = 600
 dx =   L/Nx
-dy = (L/2)/Ny
+dy = (L/4)/Ny
 dt = min(dx,dy)/abs(u_r)*0.05*0.1*0.2
-Tend=230e-6
+Tend=830e-6
 
 NT=int(Tend/dt)
 SAVE_COUNT=100
@@ -44,7 +44,7 @@ case = {
     'x_domain%beg'                 : 0,
     'x_domain%end'                 : L,
     'y_domain%beg'                 : 0,
-    'y_domain%end'                 : L/2,
+    'y_domain%end'                 : L/4,
     'm'                            : Nx,
     'n'                            : Ny,
     'p'                            : 0,
@@ -52,13 +52,13 @@ case = {
     't_step_start'                 : 0,
     't_step_stop'                  : NT,
     't_step_save'                  : 2,
-    't_step_print'                 : 10,
-    'parallel_io'                  : 'F', #if args.mfc.get("mpi", True) else 'F',
+    't_step_print'                 : 1,
+    'parallel_io'                  : 'T', #if args.mfc.get("mpi", True) else 'F',
 
     # Simulation Algorithm Parameters ==========================================
     'model_eqns'                   : 2,
     'num_fluids'                   : 1,
-    'num_patches'                  : 1,
+    'num_patches'                  : 2,
     'mpp_lim'                      : 'F',
     'mixture_err'                  : 'F',
     'time_stepper'                 : 3,
@@ -87,25 +87,42 @@ case = {
     'precision'                    : 2,
     'prim_vars_wrt'                : 'T',
     'chem_wrt_T'                   : 'T',
+        'vel_wrt(1)'                   : 'T',
+    'vel_wrt(2)'                   : 'T',
+    'pres_wrt'                     : 'T',
     # ==========================================================================
    # 'rho_wrt' : 'T',
 
-    # ==========================================================================
-    # ==========================================================================
 
-    # ==========================================================================
-    'patch_icpp(1)%geometry'       : 7,
+    'patch_icpp(1)%geometry'       : 3,
     'patch_icpp(1)%x_centroid'     : L/2,
-    'patch_icpp(1)%y_centroid'     : L/4,
+    'patch_icpp(1)%y_centroid'     : L/8,
     'patch_icpp(1)%length_x'       : L,
-    'patch_icpp(1)%length_y'       : L/2,
-    'patch_icpp(1)%hcid'           : 209,
-    'patch_icpp(1)%vel(1)'         : 0,
-    'patch_icpp(1)%vel(2)'         : 0,
+    'patch_icpp(1)%length_y'       : L/4,
+    'patch_icpp(1)%vel(1)'         : -487.34,
+    'patch_icpp(1)%vel(2)'         : 0.0,
     'patch_icpp(1)%pres'           : sol_R.P,
     'patch_icpp(1)%alpha(1)'       : 1,
     'patch_icpp(1)%alpha_rho(1)'   : sol_R.density,
-   # 'patch_icpp(1)%alter_patch(1)' : 'T',
+   # 'patch_icpp(1)%Y(1)'           : 0.5,
+   # 'patch_icpp(1)%Y(2)'           : 0.5,
+    # ==========================================================================
+    # ==========================================================================
+    # ==========================================================================
+
+    'patch_icpp(2)%geometry'       : 7,
+    'patch_icpp(2)%x_centroid'     : L/4,
+    'patch_icpp(2)%y_centroid'     : L/8,
+    'patch_icpp(2)%length_x'       : L/2,
+    'patch_icpp(2)%length_y'       : L/4,
+    'patch_icpp(2)%hcid'           : 209,
+    'patch_icpp(2)%vel(1)'         : 0,
+    'patch_icpp(2)%vel(2)'         : 0,
+    'patch_icpp(2)%pres'           : sol_L.P,
+    'patch_icpp(2)%alpha(1)'       : 1,
+    'patch_icpp(2)%alpha_rho(1)'   : sol_L.density,
+  #  'patch_icpp(1)%alter_patch(1)' : 'F',
+    'patch_icpp(2)%alter_patch(1)' : 'T',
     # ==========================================================================
 
     # ==========================================================================
@@ -142,11 +159,11 @@ case = {
     # ==========================================================================
 }
 
-#if args.chemistry:
-#    for i in range(len(sol_L.Y)):
-#        case[f'chem_wrt_Y({i + 1})']    = 'T'
-     #   case[f'patch_icpp(1)%Y({i+1})'] = sol_L.Y[i]
-      #  case[f'patch_icpp(2)%Y({i+1})'] = sol_L.Y[i]
+if args.chemistry:
+      for i in range(len(sol_L.Y)):
+        case[f'chem_wrt_Y({1})']    = 'T'
+        case[f'patch_icpp(1)%Y({i+1})'] = sol_L.Y[i]
+        case[f'patch_icpp(2)%Y({i+1})'] = sol_L.Y[i]
     #    #case[f'patch_icpp(3)%Y({i+1})'] = sol_L.Y[i]
 
 if __name__ == '__main__':
