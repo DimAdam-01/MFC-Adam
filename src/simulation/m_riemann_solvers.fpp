@@ -2657,8 +2657,6 @@ contains
 
                                 flux_src_rs${XYZ}$_vf(j, k, l, advxb) = vel_src_rs${XYZ}$_vf(j, k, l, idx1)
 
-                                !print *, pres_L
-
                                 if (chemistry) then
                                     !$acc loop seq
                                     do i = chemxb, chemxe
@@ -4031,11 +4029,7 @@ contains
 
                             dvel_avg_dx(1) = 5e-1_wp*(dvelL_dx_vf(1)%sf(j, k, l) &
                                                       + dvelR_dx_vf(1)%sf(j + 1, k, l))
-                            if (j .eq. 10) then
-                              !print *, x_cc(isx%beg), x_cc(isx%end)
-                              print *, y_cc(isy%beg), x_cc(isy%end), 'yyyyy'
-
-                          end if
+                            
                             tau_Re(1, 1) = (4._wp/3._wp)*dvel_avg_dx(1)/ &
                                            Re_avg_rsx_vf(j, k, l, 1)
 
@@ -4227,12 +4221,6 @@ contains
                 do l = isz%beg, isz%end
                     do k = isy%beg, isy%end
                         do j = isx%beg, isx%end
-
-                                      if (j .eq. 10) then
-                              !print *, x_cc(isx%beg), x_cc(isx%end)
-                              print *, y_cc(isy%beg), x_cc(isy%end), 'yyyyy'
-
-                          end if
 
                             !$acc loop seq
                             do i = 1, 2

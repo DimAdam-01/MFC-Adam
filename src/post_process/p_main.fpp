@@ -28,9 +28,7 @@ program p_main
     real(wp) :: H
 
     call s_initialize_mpi_domain()
-    print *, proc_rank, "here lol1"; call sleep(1)
-   call s_initialize_modules()
-print *, proc_rank, "here lol2"; call sleep(1)
+    call s_initialize_modules()
     if (cfl_dt) then
         t_step = n_start
         n_save = int(t_stop/t_save) + 1
@@ -48,11 +46,8 @@ print *, proc_rank, "here lol2"; call sleep(1)
         ! first missing step, before the slower rank finishes writing the last
         ! available step. To avoid this, we force synchronization here.
         call s_mpi_barrier()
-print *, proc_rank, "here lol3"; call sleep(1)
         call s_perform_time_step(t_step)
-print *, proc_rank, "here lol4"; call sleep(1)
         call s_save_data(t_step, varname, pres, c, H)
-print *, proc_rank, "here lol5"; call sleep(1)
         if (cfl_dt) then
             if (t_step == n_save - 1) then
                 exit
@@ -85,6 +80,5 @@ print *, proc_rank, "here lol5"; call sleep(1)
     close (11)
 
     call s_finalize_modules()
-    print *, proc_rank, "here lol6"; call sleep(1)
 
 end program p_main

@@ -321,8 +321,6 @@ contains
                 end if
             end do
 
-            print *, proc_rank, "here lol___666"; call sleep(1)
-
             if (chem_wrt_T) then
                 q_sf = q_T_sf%sf(x_beg:x_end, y_beg:y_end, z_beg:z_end)
                 write (varname, '(A)') 'T'

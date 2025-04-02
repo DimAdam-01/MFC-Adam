@@ -61,7 +61,6 @@ contains
                     call get_temperature(energy, dflt_T_guess, Ys, .true., q_T_sf%sf(x, y, z))
                     
                 end do
-             !   print *, q_cons_vf(E_idx)%sf(bounds(1)%end+1, 0, 0)
             end do
         end do
 
