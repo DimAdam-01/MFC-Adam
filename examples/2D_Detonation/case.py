@@ -24,10 +24,10 @@ u_l = 0
 u_r = -487.34
 
 L  = 0.24
-Nx = 2400
-Ny = 600
+Nx = 800
+Ny = 200
 dx =   L/Nx
-dy = (L/4)/Ny
+dy = (L/8)/Ny
 dt = min(dx,dy)/abs(u_r)*0.05*0.1*0.2
 Tend=830e-6
 
@@ -118,9 +118,9 @@ case = {
     'patch_icpp(2)%hcid'           : 209,
     'patch_icpp(2)%vel(1)'         : 0,
     'patch_icpp(2)%vel(2)'         : 0,
-    'patch_icpp(2)%pres'           : sol_L.P,
+    'patch_icpp(2)%pres'           : sol_R.P,
     'patch_icpp(2)%alpha(1)'       : 1,
-    'patch_icpp(2)%alpha_rho(1)'   : sol_L.density,
+    'patch_icpp(2)%alpha_rho(1)'   : sol_R.density,
   #  'patch_icpp(1)%alter_patch(1)' : 'F',
     'patch_icpp(2)%alter_patch(1)' : 'T',
     # ==========================================================================
@@ -163,7 +163,7 @@ if args.chemistry:
       for i in range(len(sol_L.Y)):
         case[f'chem_wrt_Y({1})']    = 'T'
         case[f'patch_icpp(1)%Y({i+1})'] = sol_L.Y[i]
-        case[f'patch_icpp(2)%Y({i+1})'] = sol_L.Y[i]
+      #  case[f'patch_icpp(2)%Y({i+1})'] = sol_L.Y[i]
     #    #case[f'patch_icpp(3)%Y({i+1})'] = sol_L.Y[i]
 
 if __name__ == '__main__':

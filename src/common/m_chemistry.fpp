@@ -19,6 +19,9 @@ module m_chemistry
 
     implicit none
 
+    type(int_bounds_info):: isc1, isc2, isc3
+    !$acc declare create(isc1, isc2, isc3)
+
 contains
 
     subroutine s_compute_q_T_sf(q_T_sf, q_cons_vf, bounds)
@@ -130,13 +133,16 @@ contains
 
       integer :: x, y, z, i, n, eqn
 
-      !$acc update device(irx, iry, irz) 
+      isc1=irx;isc2=iry;isc3=irz
+
+      !$acc update device(isc1, isc2, isc3)
       if (chemistry) then
           if (idir == 1) then
-              !$acc parallel loop collapse(3) gang vector default(present)
-              do z = irz%beg, irz%end
-                  do y = iry%beg, iry%end
-                      do x = irx%beg, irx%end
+              !$acc parallel loop collapse(3) gang vector default(present) &
+              !$acc private(Ys_L,Ys_R,Ys_cell,Xs_L,Xs_R,mass_diffusivities_mixavg1,mass_diffusivities_mixavg2,mass_diffusivities_mixavg_Cell,h_l,h_r,Xs_cell,h_k,dXk_dxi,Mass_Diffu_Flux)
+              do z = isc3%beg, isc3%end
+                  do y = isc2%beg, isc2%end
+                      do x = isc1%beg, isc1%end
                           dx = x_cc(x + 1) - x_cc(x)
 
                           !$acc loop seq
@@ -231,10 +237,11 @@ contains
               end do
 
           elseif (idir == 2) then
-              !$acc parallel loop collapse(3) gang vector default(present)
-              do z = irz%beg, irz%end
-                  do y = iry%beg, iry%end
-                      do x = irx%beg, irx%end
+              !$acc parallel loop collapse(3) gang vector default(present) &
+              !$acc private(Ys_L,Ys_R,Ys_cell,Xs_L,Xs_R,mass_diffusivities_mixavg1,mass_diffusivities_mixavg2,mass_diffusivities_mixavg_Cell,h_l,h_r,Xs_cell,h_k,dXk_dxi,Mass_Diffu_Flux)
+              do z = isc3%beg, isc3%end
+                  do y = isc2%beg, isc2%end
+                      do x = isc1%beg, isc1%end
                           dy = y_cc(y+1) - y_cc(y)
 
                           !$acc loop seq
@@ -329,10 +336,11 @@ contains
               end do
 
           elseif (idir == 3) then
-              !$acc parallel loop collapse(3) gang vector default(present)
-              do z = irz%beg, irz%end
-                  do y = iry%beg, iry%end
-                      do x = irx%beg, irx%end
+              !$acc parallel loop collapse(3) gang vector default(present) &
+              !$acc private(Ys_L,Ys_R,Ys_cell,Xs_L,Xs_R,mass_diffusivities_mixavg1,mass_diffusivities_mixavg2,mass_diffusivities_mixavg_Cell,h_l,h_r,Xs_cell,h_k,dXk_dxi,Mass_Diffu_Flux)
+              do z = isc3%beg, isc3%end
+                  do y = isc2%beg, isc2%end
+                      do x = isc1%beg, isc1%end
                           dz = z_cc(z + 1) - z_cc(z)
 
                           !$acc loop seq

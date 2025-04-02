@@ -219,9 +219,10 @@ contains
         ! Opening a new formatted database file
         call s_open_formatted_database_file(t_step)
 
+
         if (sim_data .and. proc_rank == 0) then
             call s_open_intf_data_file()
-            call s_open_energy_data_file()
+           call s_open_energy_data_file()
         end if
 
         if (sim_data) then
@@ -319,6 +320,8 @@ contains
 
                 end if
             end do
+
+            print *, proc_rank, "here lol___666"; call sleep(1)
 
             if (chem_wrt_T) then
                 q_sf = q_T_sf%sf(x_beg:x_end, y_beg:y_end, z_beg:z_end)
