@@ -1552,12 +1552,14 @@ contains
 
                     ! energy flux, u(E+p)
                     FK_vf(j, k, l, E_idx) = vel_K(dir_idx(1))*(E_K + pres_K)
-
+                    
                     ! Species advection Flux, \rho*u*Y
-                    !$acc loop seq
-                    do i=1,num_species
-                        FK_vf(j, k, l, i-1+chemxb) = vel_K(dir_idx(1))*(rho_K*Y_K(i))
-                    end do
+                    if (chemistry) then 
+                        !$acc loop seq
+                        do i=1, num_species
+                            FK_vf(j, k, l, i - 1 + chemxb) = vel_K(dir_idx(1))*(rho_K*Y_K(i))
+                        end do
+                    end if
 
                     if (riemann_solver == 1 .or. riemann_solver == 4) then
                         !$acc loop seq

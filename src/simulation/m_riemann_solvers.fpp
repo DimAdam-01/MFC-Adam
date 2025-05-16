@@ -45,7 +45,8 @@ module m_riemann_solvers
         gas_constant, get_mixture_molecular_weight, &
         get_mixture_specific_heat_cv_mass, get_mixture_energy_mass, &
         get_species_specific_heats_r, get_species_enthalpies_rt, &
-        get_mixture_specific_heat_cp_mass
+        get_mixture_specific_heat_cp_mass, get_mixture_viscosity_mixavg, &
+        get_species_viscosities
 
     implicit none
 
@@ -678,6 +679,12 @@ contains
                             end if
 
                             if (viscous) then
+                                if (chemistry) then
+                                    call get_mixture_viscosity_mixavg(T_L, Ys_L, Re_L(1))
+                                    call get_mixture_viscosity_mixavg(T_R, Ys_R, Re_R(1))
+                                    Re_L(1) = 1.0_wp/Re_L(1)
+                                    Re_R(1) = 1.0_wp/Re_R(1)
+                                end if
                                 !$acc loop seq
                                 do i = 1, 2
                                     Re_avg_rs${XYZ}$_vf(j, k, l, i) = 2._wp/(1._wp/Re_L(i) + 1._wp/Re_R(i))
@@ -2661,11 +2668,20 @@ contains
                                                               vel_avg_rms, c_sum_Yi_Phi, c_avg)
 
                                 if (viscous) then
+                                    if (chemistry) then
+                                        call get_mixture_viscosity_mixavg(T_L, Ys_L, Re_L(1))
+                                        call get_mixture_viscosity_mixavg(T_R, Ys_R, Re_R(1))
+                                        print *,Re_L(1), x_cc(j)+(x_cc(1)+x_cc(2))/2.0_wp
+                                        Re_L(1) = 1.0_wp/Re_L(1)
+                                        Re_R(1) = 1.0_wp/Re_R(1)
+                                    end if
                                     !$acc loop seq
                                     do i = 1, 2
                                         Re_avg_rs${XYZ}$_vf(j, k, l, i) = 2._wp/(1._wp/Re_L(i) + 1._wp/Re_R(i))
                                     end do
                                 end if
+
+                                
 
                                 if (low_Mach == 2) then
                                     @:compute_low_Mach_correction()
