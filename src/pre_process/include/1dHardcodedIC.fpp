@@ -66,7 +66,6 @@
     ! Put your variable assignments here
     ! (0.4+x_cc(i)/0.002*0.2)/2.016+(0.6-x_cc(i)/0.002*0.2)/32)
 
-
     case(101)
     q_prim_vf(momxb)%sf(i,0,0)=8*exp(-600*((x_cc(i)-0.0035/2)/0.002)**2)
        q_prim_vf(E_idx)%sf(i,0,0)=1.01325*10**5+2.2d0*0.227d0*818.74d0*exp(-600*((x_cc(i)-0.0035/2)/0.002)**2)
