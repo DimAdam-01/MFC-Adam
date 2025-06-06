@@ -329,6 +329,8 @@ contains
         real(wp) :: gamma_avg
         real(wp) :: c_avg
 
+        real(wp) :: wsmall
+
         real(wp) :: s_L, s_R, s_M, s_P, s_S
         real(wp) :: xi_M, xi_P
 
@@ -337,7 +339,96 @@ contains
         real(wp) :: Ms_L, Ms_R, pres_SL, pres_SR
         real(wp) :: alpha_L_sum, alpha_R_sum
 
-        integer :: i, j, k, l, q !< Generic loop iterators
+!——————————————
+! (5) Arrays for species‐fractions and mixture properties
+!——————————————
+
+real(wp), dimension(num_species) :: Y_s          ! temporary array for “Y_s(n) = ρ·Y_i”
+real(wp), dimension(num_species) :: rspstar      ! star‐state species densities (ρ·Y*_i)
+real(wp), dimension(num_species) :: rspgd        ! Godunov‐state species densities
+
+! Once you compute gdnv_state_rho and gdnv_state_p,
+! you fill these arrays with mass fractions for that new state:
+real(wp), dimension(num_species) :: gdnv_state_massfrac
+real(wp), dimension(num_species) :: gdnv_state_Xs     ! mole/mass fractions for EOS calls
+real(wp), dimension(num_species) :: gdnv_state_Cp_i   ! species‐specific heats at T
+real(wp), dimension(num_species) :: gdnv_state_Gamma_i! Γ_i = Cp_i/(Cp_i–1)
+
+!——————————————
+! (6) Scalar “star” and intermediate‐state quantities
+!——————————————
+real(wp) :: pstar           ! pressure in the Riemann “star” region
+real(wp) :: ustar           ! velocity in the star region
+real(wp) :: uo              ! “upwind” velocity (u_L or u_R depending on sign of ustar)
+real(wp) :: po              ! “upwind” pressure (p_L or p_R)
+real(wp) :: ro              ! temp. sum of Y_s(n) = ρ·Y_i, used for averaging
+real(wp) :: rstar           ! sum of rspstar(n) = star‐state ρ·Y*_i
+logical   :: mask           ! logical mask = (ustar>0) or (ustar small) etc.
+
+real(wp) :: gdnv_state_rho  ! mixture density in the current state 
+real(wp) :: gdnv_state_p    ! mixture pressure in the current state 
+real(wp) :: gdnv_state_mw   ! mixture molecular weight (for EOS)
+real(wp) :: gdnv_state_R_gas! = gas_constant / gdnv_state_mw
+real(wp) :: gdnv_state_T    ! mixture temperature (T = p/(ρR))
+real(wp) :: gdnv_state_e    ! internal energy per unit mass 
+real(wp) :: gdnv_state_H    ! mixture enthalpy (if needed for your EOS call)
+real(wp) :: gdnv_state_gamma! mixture γ = sum(X_i/(Γ_i – 1))
+
+!——————————————
+! (7) Sound speeds and related
+!——————————————
+real(wp) :: co              ! local sound speed (e.g. from s_compute_speed_of_sound)
+real(wp) :: cstar           ! sound speed in the star region
+real(wp) :: cl, cr          ! (if you still need left/right “c” elsewhere)
+real(wp) :: drho            ! = (pstar – po)/(co*co)
+real(wp) :: spout           ! = co – sign(ustar)*uo
+real(wp) :: spin            ! = cstar – sign(ustar)*ustar
+real(wp) :: ushock          ! = 0.5*(spout + spin)
+real(wp) :: sgnm            ! = sign(1.0_wp, ustar)
+
+!——————————————
+! (8) Fractional flux/blending variables
+!——————————————
+real(wp) :: scr             ! denominator = (spout – spin) or small fallback
+real(wp) :: frac            ! = max(0, min(1, [1 + (spout+spin)/scr]*0.5))
+real(wp) :: spon            ! = Y_s(n)/ro for each species
+real(wp) :: frac_term       ! optional, if you want a local temp
+
+!——————————————
+! (9) Directional‐velocity picks (even if you “ignore” dir_idx, you still need these)
+!——————————————
+real(wp) :: qint_iv1        ! transverse‐vel component in intermediate state
+real(wp) :: qint_iv2        ! second transverse component
+real(wp) :: omega           ! vorticity or rotation‐rate for intermediate state
+real(wp) :: rad             ! radius or rotational lever arm in intermediate state
+
+! (If you need to store left/right versions of those)
+real(wp) :: omega_L
+real(wp) :: omega_R
+real(wp) :: rad_L,wl,wr
+real(wp) :: rad_R
+
+!——————————————
+! (10) Final‐state density & mass fractions, energy, etc.
+!——————————————
+real(wp) :: qint_iu         ! velocity used in final Godunov flux
+real(wp) :: qint_gdpres     ! pressure used in final Godunov flux
+real(wp) :: rgd             ! final Godunov density = sum(rspgd(n))
+real(wp) :: regd            ! = rgd * e  = final internal‐energy density
+real(wp) :: qint_gdgame     ! “γ‐like” quantity in final state = p/(ρe) + 1
+
+!——————————————
+! (11) Momentum/energy flux pieces (before writing them into flux_rs…)
+!——————————————
+real(wp) :: rhoetot         ! total energy‐density = regd + ½·rgd·(u² + v² + w²)
+real(wp) :: uflx_rho        ! mass‐flux = rgd*qint_iu   (if you need to store it)
+real(wp) :: uflx_u          ! momentum‐flux in x‐dir = uflx_rho*qint_iu + qint_gdpres
+real(wp) :: uflx_v          ! momentum‐flux in y‐dir = uflx_rho*qint_iv1
+real(wp) :: uflx_w          ! momentum‐flux in z‐dir = uflx_rho*qint_iv2
+real(wp) :: uflx_eden       ! energy‐flux = qint_iu*(rhoetot + qint_gdpres)
+
+
+        integer :: i, j, k, l, q, n !< Generic loop iterators
 
         ! Populating the buffers of the left and right Riemann problem
         ! states variables, based on the choice of boundary conditions
@@ -479,6 +570,8 @@ contains
                                 end do
                             end if
 
+
+
                             if (chemistry) then
                                 !$acc loop seq
                                 do i = chemxb, chemxe
@@ -501,25 +594,25 @@ contains
                                 call get_species_specific_heats_r(T_L, Cp_iL)
                                 call get_species_specific_heats_r(T_R, Cp_iR)
 
-                                if (chem_params%gamma_method == 1) then
+                                !if (chem_params%gamma_method == 1) then
                                     ! gamma_method = 1: Ref. Section 2.3.1 Formulation of doi:10.7907/ZKW8-ES97.
                                     Gamma_iL = Cp_iL/(Cp_iL - 1.0_wp)
                                     Gamma_iR = Cp_iR/(Cp_iR - 1.0_wp)
 
                                     gamma_L = sum(Xs_L(:)/(Gamma_iL(:) - 1.0_wp))
                                     gamma_R = sum(Xs_R(:)/(Gamma_iR(:) - 1.0_wp))
-                                else if (chem_params%gamma_method == 2) then
+                               ! else if (chem_params%gamma_method == 2) then
                                     ! gamma_method = 2: c_p / c_v where c_p, c_v are specific heats.
-                                    call get_mixture_specific_heat_cp_mass(T_L, Ys_L, Cp_L)
-                                    call get_mixture_specific_heat_cp_mass(T_R, Ys_R, Cp_R)
-                                    call get_mixture_specific_heat_cv_mass(T_L, Ys_L, Cv_L)
-                                    call get_mixture_specific_heat_cv_mass(T_R, Ys_R, Cv_R)
+                                    !call get_mixture_specific_heat_cp_mass(T_L, Ys_L, Cp_L)
+                                   ! call get_mixture_specific_heat_cp_mass(T_R, Ys_R, Cp_R)
+                                  !  call get_mixture_specific_heat_cv_mass(T_L, Ys_L, Cv_L)
+                                 !   call get_mixture_specific_heat_cv_mass(T_R, Ys_R, Cv_R)
 
-                                    Gamm_L = Cp_L/Cv_L
-                                    gamma_L = 1.0_wp/(Gamm_L - 1.0_wp)
-                                    Gamm_R = Cp_R/Cv_R
-                                    gamma_R = 1.0_wp/(Gamm_R - 1.0_wp)
-                                end if
+                                 !   Gamm_L = Cp_L/Cv_L
+                                !    gamma_L = 1.0_wp/(Gamm_L - 1.0_wp)
+                               !     Gamm_R = Cp_R/Cv_R
+                              !      gamma_R = 1.0_wp/(Gamm_R - 1.0_wp)
+                              !  end if
 
                                 call get_mixture_energy_mass(T_L, Ys_L, E_L)
                                 call get_mixture_energy_mass(T_R, Ys_R, E_R)
@@ -536,63 +629,13 @@ contains
                             end if
 
                             ! elastic energy update
-                            if (hypoelasticity) then
-                                G_L = 0._wp; G_R = 0._wp
-
-                                !$acc loop seq
-                                do i = 1, num_fluids
-                                    G_L = G_L + alpha_L(i)*Gs(i)
-                                    G_R = G_R + alpha_R(i)*Gs(i)
-                                end do
-
-                                do i = 1, strxe - strxb + 1
-                                    tau_e_L(i) = qL_prim_rs${XYZ}$_vf(j, k, l, strxb - 1 + i)
-                                    tau_e_R(i) = qR_prim_rs${XYZ}$_vf(j + 1, k, l, strxb - 1 + i)
-                                    ! Elastic contribution to energy if G large enough
-                                    !TODO take out if statement if stable without
-                                    if ((G_L > 1000) .and. (G_R > 1000)) then
-                                        E_L = E_L + (tau_e_L(i)*tau_e_L(i))/(4._wp*G_L)
-                                        E_R = E_R + (tau_e_R(i)*tau_e_R(i))/(4._wp*G_R)
-                                        ! Additional terms in 2D and 3D
-                                        if ((i == 2) .or. (i == 4) .or. (i == 5)) then
-                                            E_L = E_L + (tau_e_L(i)*tau_e_L(i))/(4._wp*G_L)
-                                            E_R = E_R + (tau_e_R(i)*tau_e_R(i))/(4._wp*G_R)
-                                        end if
-                                    end if
-                                end do
-                            end if
-
-                            ! elastic energy update
-                            !if ( hyperelasticity ) then
-                            !    G_L = 0._wp
-                            !    G_R = 0._wp
-                            !
-                            !    !$acc loop seq
-                            !    do i = 1, num_fluids
-                            !        G_L = G_L + alpha_L(i)*Gs(i)
-                            !        G_R = G_R + alpha_R(i)*Gs(i)
-                            !    end do
-                            !    ! Elastic contribution to energy if G large enough
-                            !    if ((G_L > 1e-3_wp) .and. (G_R > 1e-3_wp)) then
-                            !    E_L = E_L + G_L*qL_prim_rs${XYZ}$_vf(j, k, l, xiend + 1)
-                            !    E_R = E_R + G_R*qR_prim_rs${XYZ}$_vf(j + 1, k, l, xiend + 1)
-                            !    !$acc loop seq
-                            !    do i = 1, b_size-1
-                            !        tau_e_L(i) = G_L*qL_prim_rs${XYZ}$_vf(j, k, l, strxb - 1 + i)
-                            !        tau_e_R(i) = G_R*qR_prim_rs${XYZ}$_vf(j + 1, k, l, strxb - 1 + i)
-                            !    end do
-                            !    !$acc loop seq
-                            !    do i = 1, b_size-1
-                            !        tau_e_L(i) = 0_wp
-                            !        tau_e_R(i) = 0_wp
-                            !    end do
-                            !    !$acc loop seq
-                            !    do i = 1, num_dims
+                                                        !    do i = 1, num_dims
                             !        xi_field_L(i) = qL_prim_rs${XYZ}$_vf(j, k, l, xibeg - 1 + i)
                             !        xi_field_R(i) = qR_prim_rs${XYZ}$_vf(j + 1, k, l, xibeg - 1 + i)
                             !    end do
                             !    end if
                             !end if
+                            !
 
                             ! Enthalpy with elastic energy
                             H_L = (E_L + pres_L)/rho_L
@@ -612,284 +655,283 @@ contains
                             call s_compute_speed_of_sound(pres_R, rho_avg, gamma_avg, pi_inf_R, H_avg, alpha_R, &
                                                           vel_avg_rms, c_sum_Yi_Phi, c_avg)
 
-                            if (viscous) then
-                                if (chemistry) then
-                                    call get_mixture_viscosity_mixavg(T_L, Ys_L, Re_L(1))
-                                    call get_mixture_viscosity_mixavg(T_R, Ys_R, Re_R(1))
-                                    Re_L(1) = 1.0_wp/Re_L(1)
-                                    Re_R(1) = 1.0_wp/Re_R(1)
+                            wsmall = tiny(0.0_wp)
+
+                            wl = max(wsmall, c_L*rho_L)
+                            wr = max(wsmall, c_R*rho_R)
+
+
+
+                            pstar = max(tiny(0.0_wp), ((wr * pres_L + wl * pres_R) + wl * wr * (vel_L(dir_idx(1)) - vel_R(dir_idx(1)))) / (wl + wr))
+
+                              ! Compute star velocity
+                              ustar = ((wl * vel_L(dir_idx(1)) + wr * vel_R(dir_idx(1))) + (pres_L - pres_R)) / (wl + wr)
+
+                              ! Determine which state to use based on ustar sign
+                              mask = ustar > 0.0_wp
+                              ro = 0.0_wp
+                              do n = 1, num_species
+                                  if (mask) then
+                                      Y_s(n) = rho_L*Ys_L(n)                     
+                                    else
+                                      Y_s(n) = rho_R*Ys_R(n)! rspo(n) keeps its previous value
+                                  end if
+                                  ro = ro + Y_s(n)
+                              end do
+
+                              if (mask) then
+                                  uo = vel_L(dir_idx(1))
+                                  po = pres_L
+                              else
+                                  uo = vel_R(dir_idx(1))
+                                  po = pres_R
+                              end if
+
+                              ! Check if ustar is small relative to velocities
+                              mask = abs(ustar) < verysmall* 0.5_wp * (abs(vel_L(dir_idx(1))) + abs(vel_R(dir_idx(1)))) .or. ustar == 0.0_wp
+
+                              ! Apply averaging if ustar is small
+                              if (mask) then
+                                  ustar = 0.0_wp
+                              end if
+
+                              ro = 0.0_wp
+                              do n = 1, num_species
+                                  if (mask) then
+                                      Y_s(n) = 0.5_wp * (rho_L * Ys_L(n) + rho_R * Ys_R(n))
+                                  else
+                                      ! rspo(n) keeps its previous value
+                                  end if
+                                  ro = ro + Y_s(n)
+                              end do
+
+                              if (mask) then
+                                  uo = 0.5_wp * (vel_L(dir_idx(1)) + vel_R(dir_idx(1)))
+                                  po = 0.5_wp * (pres_L + pres_R)
+                              end if
+
+                              gdnv_state_rho = ro
+                              gdnv_state_p = po
+
+                              ! Compute mass fractions
+                              do n = 1, num_species
+                                  gdnv_state_massfrac(n) = Y_s(n) / ro
+                              end do
+                                call get_mixture_molecular_weight(gdnv_state_massfrac,gdnv_state_mw )
+
+                                gdnv_state_R_gas = gas_constant/gdnv_state_mw
+                                gdnv_state_Xs(:) = gdnv_state_massfrac(:)*gdnv_state_mw/molecular_weights(:)
+
+                                gdnv_state_T = gdnv_state_p/gdnv_state_rho/gdnv_state_R_gas
+
+
+                              ! Get internal energy from EOS
+                              ! call your_eos_interface%RYP2E(gdnv_state_rho, gdnv_state_massfrac, gdnv_state_p, gdnv_state_e)
+                              call get_mixture_energy_mass(gdnv_state_T, gdnv_state_massfrac, gdnv_state_e)
+                              ! Get sound speed
+                              co = 0.0_wp
+                              call get_species_specific_heats_r(gdnv_state_T, gdnv_state_Cp_i)
+
+                                    ! gamma_method = 1: Ref. Section 2.3.1 Formulation of doi:10.7907/ZKW8-ES97.
+                                    gdnv_state_Gamma_i = gdnv_state_Cp_i/(gdnv_state_Cp_i - 1.0_wp)
+
+                                    gdnv_state_gamma = sum(gdnv_state_Xs(:)/(gdnv_state_Gamma_i- 1.0_wp))
+
+                              ! call your_eos_interface%RPY2Cs(gdnv_state_rho, gdnv_state_p, gdnv_state_massfrac, co)
+                              call s_compute_speed_of_sound(gdnv_state_p, gdnv_state_rho, gdnv_state_gamma, pi_inf_L, H_L, alpha_L, &
+                                                          vel_L_rms, 0._wp, co)
+
+                              ! Compute density change
+                              drho = (pstar - po) / (co * co)
+
+                              ! Compute star state densities
+                              rstar = 0.0_wp
+                              do n = 1, num_species
+                                  spon = Y_s(n) / ro
+                                  rspstar(n) = max(0.0_wp, Y_s(n) + drho * spon)
+                                  rstar = rstar + rspstar(n)
+                              end do
+
+                              ! Update state variables to star state
+                              gdnv_state_rho = rstar
+                              gdnv_state_p = pstar
+
+                              ! Compute new mass fractions
+                              do n = 1, num_species
+                                  gdnv_state_massfrac(n) = rspstar(n) / rstar
+                              end do
+
+                              call get_mixture_molecular_weight(gdnv_state_massfrac, gdnv_state_mw)
+                              gdnv_state_R_gas = gas_constant/gdnv_state_mw
+                              gdnv_state_Xs(:) = gdnv_state_massfrac(:)*gdnv_state_mw/molecular_weights(:)  ! Fixed: was gdnv_state_massfrac
+                              gdnv_state_T = gdnv_state_p/gdnv_state_rho/gdnv_state_R_gas  ! Fixed: was gdnv_state_p/gdnv_state_p
+
+                              call get_mixture_energy_mass(gdnv_state_T, gdnv_state_massfrac, gdnv_state_e)
+
+                              ! Get sound speed for star state
+                              call get_species_specific_heats_r(gdnv_state_T, gdnv_state_Cp_i)
+                              gdnv_state_Gamma_i = gdnv_state_Cp_i/(gdnv_state_Cp_i - 1.0_wp)
+                              gdnv_state_gamma = sum(gdnv_state_Xs(:)/(gdnv_state_Gamma_i - 1.0_wp))
+
+                              ! Need to compute enthalpy for star state
+
+                              call s_compute_speed_of_sound(gdnv_state_p, gdnv_state_rho, gdnv_state_gamma, pi_inf_L, gdnv_state_H, alpha_L, &
+                                                            0.0_wp, 0._wp, cstar)  ! Fixed: used proper variables
+
+                              ! Compute shock speeds
+                              sgnm = sign(1.0_wp, ustar)
+                              spout = co - sgnm * uo
+                              spin = cstar - sgnm * ustar
+                              ushock = 0.5_wp * (spin + spout)
+
+                              ! Check pressure condition
+                              mask = pstar < po
+                              if (mask) then
+                                  spout = spout
+                                  spin = spin
+                              else
+                                  spout = ushock
+                                  spin = ushock
+                              end if
+
+                              ! Compute scr with very small number check
+                              if (abs(spout - spin) < wsmall) then  ! assuming you have verysmall parameter
+                                  scr = verysmall * 0.5_wp*(c_L+c_R)  ! or some reference sound speed
+                              else
+                                  scr = spout - spin
+                              end if
+
+                              ! Compute fraction
+                              frac = max(0.0_wp, min(1.0_wp, (1.0_wp + (spout + spin) / scr) * 0.5_wp))
+
+                              ! Determine which velocity components to use
+                              mask = ustar > 0.0_wp
+                            !  if (mask) then
+                            !      qint_iv1 = vel_L(dir_idx(2))  ! assuming vl corresponds to transverse velocity
+                            !      qint_iv2 = vel_L(dir_idx(3))  ! assuming v2l corresponds to third component
+                            !      omega = omega_L               ! assuming you have omega values
+                            !      rad = rad_L                   ! assuming you have rad values
+                            !  else
+                             !     qint_iv1 = vel_R(dir_idx(2))
+                             !     qint_iv2 = vel_R(dir_idx(3))
+                             !     omega = omega_R
+                             !     rad = rad_R
+                             ! end if
+
+                              ! Handle zero velocity case
+                             ! if (ustar == 0.0_wp) then
+                             !     qint_iv1 = 0.5_wp * (vel_L(dir_idx(2)) + vel_R(dir_idx(2)))
+                             !     qint_iv2 = 0.5_wp * (vel_L(dir_idx(3)) + vel_R(dir_idx(3)))
+                             ! end if
+
+                              ! Compute final Godunov state
+                              rgd = 0.0_wp
+                              do n = 1, num_species
+                                  rspgd(n) = frac * rspstar(n) + (1.0_wp - frac) * Y_s(n)
+                                  rgd = rgd + rspgd(n)
+                              end do
+
+                              qint_iu = frac * ustar + (1.0_wp - frac) * uo
+                              qint_gdpres = frac * pstar + (1.0_wp - frac) * po
+
+                              ! Final state
+                              gdnv_state_rho = rgd
+                              gdnv_state_p = qint_gdpres
+
+                              ! Compute final mass fractions
+                              do n = 1, num_species
+                                  gdnv_state_massfrac(n) = rspgd(n) / rgd
+                              end do
+
+                              ! Get final internal energy
+                              call get_mixture_molecular_weight(gdnv_state_massfrac, gdnv_state_mw)
+                              gdnv_state_R_gas = gas_constant/gdnv_state_mw
+                              gdnv_state_T = gdnv_state_p/gdnv_state_rho/gdnv_state_R_gas
+                              call get_mixture_energy_mass(gdnv_state_T, gdnv_state_massfrac, gdnv_state_e)
+
+                              mask = (spout < 0.0_wp)
+                              rgd = 0.0_wp
+                             
+                              do n = 1, num_species
+                               if (mask) then     
+                              rspgd(n) = Y_s(n)  ! Use original left/right state (rspo equivalent)
+                                    end if 
+                                      rgd = rgd + rspgd(n)
+                                      end do
+                                if (mask) then    
+                                      qint_iu = uo
+                                  qint_gdpres = po
+                              end if
+
+
+                               rgd = 0.0;
+                              ! Check if spin is positive (right-going wave)
+                              mask = (spin >= 0.0_wp)
+                                do n = 1, num_species
+                                if (mask) then
+                                    rspgd(n) = rspstar(n)  ! Use star state
+                                ! else: rspgd(n) keeps its previous value
                                 end if
-                                !$acc loop seq
-                                do i = 1, 2
-                                    Re_avg_rs${XYZ}$_vf(j, k, l, i) = 2._wp/(1._wp/Re_L(i) + 1._wp/Re_R(i))
-                                end do
-                            end if
-
-                            if (wave_speeds == 1) then
-                                if (hypoelasticity) then
-                                    s_L = min(vel_L(dir_idx(1)) - sqrt(c_L*c_L + &
-                                                                       (((4._wp*G_L)/3._wp) + &
-                                                                        tau_e_L(dir_idx_tau(1)))/rho_L) &
-                                              , vel_R(dir_idx(1)) - sqrt(c_R*c_R + &
-                                                                         (((4._wp*G_R)/3._wp) + &
-                                                                          tau_e_R(dir_idx_tau(1)))/rho_R))
-                                    s_R = max(vel_R(dir_idx(1)) + sqrt(c_R*c_R + &
-                                                                       (((4._wp*G_R)/3._wp) + &
-                                                                        tau_e_R(dir_idx_tau(1)))/rho_R) &
-                                              , vel_L(dir_idx(1)) + sqrt(c_L*c_L + &
-                                                                         (((4._wp*G_L)/3._wp) + &
-                                                                          tau_e_L(dir_idx_tau(1)))/rho_L))
-                                else if (hyperelasticity) then
-                                    s_L = min(vel_L(dir_idx(1)) - sqrt(c_L*c_L + (4_wp*G_L/3_wp)/rho_L) &
-                                              , vel_R(dir_idx(1)) - sqrt(c_R*c_R + (4_wp*G_R/3_wp)/rho_R))
-                                    s_R = max(vel_R(dir_idx(1)) + sqrt(c_R*c_R + (4_wp*G_R/3_wp)/rho_R) &
-                                              , vel_L(dir_idx(1)) + sqrt(c_L*c_L + (4_wp*G_L/3_wp)/rho_L))
-                                else
-                                    s_L = min(vel_L(dir_idx(1)) - c_L, vel_R(dir_idx(1)) - c_R)
-                                    s_R = max(vel_R(dir_idx(1)) + c_R, vel_L(dir_idx(1)) + c_L)
-                                end if
-
-                                s_S = (pres_R - pres_L + rho_L*vel_L(dir_idx(1))* &
-                                       (s_L - vel_L(dir_idx(1))) - &
-                                       rho_R*vel_R(dir_idx(1))* &
-                                       (s_R - vel_R(dir_idx(1)))) &
-                                      /(rho_L*(s_L - vel_L(dir_idx(1))) - &
-                                        rho_R*(s_R - vel_R(dir_idx(1))))
-                            elseif (wave_speeds == 2) then
-                                pres_SL = 5e-1_wp*(pres_L + pres_R + rho_avg*c_avg* &
-                                                   (vel_L(dir_idx(1)) - &
-                                                    vel_R(dir_idx(1))))
-
-                                pres_SR = pres_SL
-
-                                Ms_L = max(1._wp, sqrt(1._wp + ((5e-1_wp + gamma_L)/(1._wp + gamma_L))* &
-                                                       (pres_SL/pres_L - 1._wp)*pres_L/ &
-                                                       ((pres_L + pi_inf_L/(1._wp + gamma_L)))))
-                                Ms_R = max(1._wp, sqrt(1._wp + ((5e-1_wp + gamma_R)/(1._wp + gamma_R))* &
-                                                       (pres_SR/pres_R - 1._wp)*pres_R/ &
-                                                       ((pres_R + pi_inf_R/(1._wp + gamma_R)))))
-
-                                s_L = vel_L(dir_idx(1)) - c_L*Ms_L
-                                s_R = vel_R(dir_idx(1)) + c_R*Ms_R
-
-                                s_S = 5e-1_wp*((vel_L(dir_idx(1)) + vel_R(dir_idx(1))) + &
-                                               (pres_L - pres_R)/ &
-                                               (rho_avg*c_avg))
-                            end if
-
-                            s_M = min(0._wp, s_L); s_P = max(0._wp, s_R)
-
-                            xi_M = (5e-1_wp + sign(5e-1_wp, s_L)) &
-                                   + (5e-1_wp - sign(5e-1_wp, s_L)) &
-                                   *(5e-1_wp + sign(5e-1_wp, s_R))
-                            xi_P = (5e-1_wp - sign(5e-1_wp, s_R)) &
-                                   + (5e-1_wp - sign(5e-1_wp, s_L)) &
-                                   *(5e-1_wp + sign(5e-1_wp, s_R))
-
-                            ! Mass
-                            !$acc loop seq
-                            do i = 1, contxe
-                                flux_rs${XYZ}$_vf(j, k, l, i) = &
-                                    (s_M*alpha_rho_R(i)*vel_R(dir_idx(1)) &
-                                     - s_P*alpha_rho_L(i)*vel_L(dir_idx(1)) &
-                                     + s_M*s_P*(alpha_rho_L(i) &
-                                                - alpha_rho_R(i))) &
-                                    /(s_M - s_P)
+                                rgd = rgd + rspgd(n)
                             end do
 
-                            ! Momentum
-                            if (bubbles_euler) then
-                                !$acc loop seq
-                                do i = 1, num_dims
+                            if (mask) then
+                                qint_iu = ustar
+                                qint_gdpres = pstar
+                            ! else: qint_iu and qint_gdpres keep their previous values
+                            end if
+
+                              ! Set final Godunov state
+                              gdnv_state_rho = rgd
+                              gdnv_state_p = qint_gdpres
+
+                              ! Compute final mass fractions
+                              do n = 1, num_species
+                                  gdnv_state_massfrac(n) = rspgd(n) / rgd
+                              end do
+
+
+                              call get_mixture_molecular_weight(gdnv_state_massfrac, gdnv_state_mw)
+                              gdnv_state_R_gas = gas_constant/gdnv_state_mw
+                               gdnv_state_T = gdnv_state_p/gdnv_state_rho/gdnv_state_R_gas
+
+
+                              call get_mixture_energy_mass(gdnv_state_T, gdnv_state_massfrac, gdnv_state_e)
+
+                              ! Compute internal energy density
+                              regd = gdnv_state_rho * gdnv_state_e
+
+                              ! Compute gamma-like quantity
+                              qint_gdgame = qint_gdpres / regd + 1.0_wp
+
+                              ! Apply boundary condition test value
+                              
+
+                              ! Compute mass flux
+                              flux_rs${XYZ}$_vf(j, k, l, 1) = rgd * qint_iu
+
+                              ! Compute species mass fluxes
+                              do i = chemxb, chemxe
+                                  flux_rs${XYZ}$_vf(j, k, l, i) = rspgd(i-chemxb+1) * qint_iu
+                              end do
+
+                              uflx_u =rgd * qint_iu* qint_iu + qint_gdpres
+                              do i = 1, num_dims
                                     flux_rs${XYZ}$_vf(j, k, l, contxe + dir_idx(i)) = &
-                                        (s_M*(rho_R*vel_R(dir_idx(1)) &
-                                              *vel_R(dir_idx(i)) &
-                                              + dir_flg(dir_idx(i))*(pres_R - ptilde_R)) &
-                                         - s_P*(rho_L*vel_L(dir_idx(1)) &
-                                                *vel_L(dir_idx(i)) &
-                                                + dir_flg(dir_idx(i))*(pres_L - ptilde_L)) &
-                                         + s_M*s_P*(rho_L*vel_L(dir_idx(i)) &
-                                                    - rho_R*vel_R(dir_idx(i)))) &
-                                        /(s_M - s_P)
-                                end do
-                            else if (hypoelasticity) then
-                                !$acc loop seq
-                                do i = 1, num_dims
-                                    flux_rs${XYZ}$_vf(j, k, l, contxe + dir_idx(i)) = &
-                                        (s_M*(rho_R*vel_R(dir_idx(1)) &
-                                              *vel_R(dir_idx(i)) &
-                                              + dir_flg(dir_idx(i))*pres_R &
-                                              - tau_e_R(dir_idx_tau(i))) &
-                                         - s_P*(rho_L*vel_L(dir_idx(1)) &
-                                                *vel_L(dir_idx(i)) &
-                                                + dir_flg(dir_idx(i))*pres_L &
-                                                - tau_e_L(dir_idx_tau(i))) &
-                                         + s_M*s_P*(rho_L*vel_L(dir_idx(i)) &
-                                                    - rho_R*vel_R(dir_idx(i)))) &
-                                        /(s_M - s_P)
-                                end do
-                            else
-                                !$acc loop seq
-                                do i = 1, num_dims
-                                    flux_rs${XYZ}$_vf(j, k, l, contxe + dir_idx(i)) = &
-                                        (s_M*(rho_R*vel_R(dir_idx(1)) &
-                                              *vel_R(dir_idx(i)) &
-                                              + dir_flg(dir_idx(i))*pres_R) &
-                                         - s_P*(rho_L*vel_L(dir_idx(1)) &
-                                                *vel_L(dir_idx(i)) &
-                                                + dir_flg(dir_idx(i))*pres_L) &
-                                         + s_M*s_P*(rho_L*vel_L(dir_idx(i)) &
-                                                    - rho_R*vel_R(dir_idx(i)))) &
-                                        /(s_M - s_P)
-                                end do
-                            end if
+                                    uflx_u
+                              end do
+                              ! Compute momentum fluxes
+                              
+                             ! uflx_v = uflx_rho * qint_iv1
+                             ! uflx_w = uflx_rho * qint_iv2
+                              flux_rs${XYZ}$_vf(j, k, l, 4) = 0
 
-                            ! Energy
-                            if (bubbles_euler) then
-                                flux_rs${XYZ}$_vf(j, k, l, E_idx) = &
-                                    (s_M*vel_R(dir_idx(1))*(E_R + pres_R - ptilde_R) &
-                                     - s_P*vel_L(dir_idx(1))*(E_L + pres_L - ptilde_L) &
-                                     + s_M*s_P*(E_L - E_R)) &
-                                    /(s_M - s_P)
-                            else if (hypoelasticity) then
-                                !TODO: simplify this so it's not split into 3
-                                if (num_dims == 1) then
-                                    flux_rs${XYZ}$_vf(j, k, l, E_idx) = &
-                                        (s_M*(vel_R(dir_idx(1))*(E_R + pres_R) &
-                                              - (tau_e_R(dir_idx_tau(1))*vel_R(dir_idx(1)))) &
-                                         - s_P*(vel_L(dir_idx(1))*(E_L + pres_L) &
-                                                - (tau_e_L(dir_idx_tau(1))*vel_L(dir_idx(1)))) &
-                                         + s_M*s_P*(E_L - E_R)) &
-                                        /(s_M - s_P)
-                                else if (num_dims == 2) then
-                                    flux_rs${XYZ}$_vf(j, k, l, E_idx) = &
-                                        (s_M*(vel_R(dir_idx(1))*(E_R + pres_R) &
-                                              - (tau_e_R(dir_idx_tau(1))*vel_R(dir_idx(1))) &
-                                              - (tau_e_R(dir_idx_tau(2))*vel_R(dir_idx(2)))) &
-                                         - s_P*(vel_L(dir_idx(1))*(E_L + pres_L) &
-                                                - (tau_e_L(dir_idx_tau(1))*vel_L(dir_idx(1))) &
-                                                - (tau_e_L(dir_idx_tau(2))*vel_L(dir_idx(2)))) &
-                                         + s_M*s_P*(E_L - E_R)) &
-                                        /(s_M - s_P)
-                                else if (num_dims == 3) then
-                                    flux_rs${XYZ}$_vf(j, k, l, E_idx) = &
-                                        (s_M*(vel_R(dir_idx(1))*(E_R + pres_R) &
-                                              - (tau_e_R(dir_idx_tau(1))*vel_R(dir_idx(1))) &
-                                              - (tau_e_R(dir_idx_tau(2))*vel_R(dir_idx(2))) &
-                                              - (tau_e_R(dir_idx_tau(3))*vel_R(dir_idx(3)))) &
-                                         - s_P*(vel_L(dir_idx(1))*(E_L + pres_L) &
-                                                - (tau_e_L(dir_idx_tau(1))*vel_L(dir_idx(1))) &
-                                                - (tau_e_L(dir_idx_tau(2))*vel_L(dir_idx(2))) &
-                                                - (tau_e_L(dir_idx_tau(3))*vel_L(dir_idx(3)))) &
-                                         + s_M*s_P*(E_L - E_R)) &
-                                        /(s_M - s_P)
-                                end if
-                            else
-                                flux_rs${XYZ}$_vf(j, k, l, E_idx) = &
-                                    (s_M*vel_R(dir_idx(1))*(E_R + pres_R) &
-                                     - s_P*vel_L(dir_idx(1))*(E_L + pres_L) &
-                                     + s_M*s_P*(E_L - E_R)) &
-                                    /(s_M - s_P)
-                            end if
+                              ! Compute total energy density (without rotational frame terms)
+                              rhoetot = regd + 0.5_wp * rgd * (qint_iu * qint_iu )!+ qint_iv1 * qint_iv1 + qint_iv2 * qint_iv2)
 
-                            ! Elastic Stresses
-                            if (hypoelasticity) then
-                                do i = 1, strxe - strxb + 1 !TODO: this indexing may be slow
-                                    flux_rs${XYZ}$_vf(j, k, l, strxb - 1 + i) = &
-                                        (s_M*(rho_R*vel_R(dir_idx(1)) &
-                                              *tau_e_R(i)) &
-                                         - s_P*(rho_L*vel_L(dir_idx(1)) &
-                                                *tau_e_L(i)) &
-                                         + s_M*s_P*(rho_L*tau_e_L(i) &
-                                                    - rho_R*tau_e_R(i))) &
-                                        /(s_M - s_P)
-                                end do
-                            end if
-
-                            ! Advection
-                            !$acc loop seq
-                            do i = advxb, advxe
-                                flux_rs${XYZ}$_vf(j, k, l, i) = &
-                                    (qL_prim_rs${XYZ}$_vf(j, k, l, i) &
-                                     - qR_prim_rs${XYZ}$_vf(j + 1, k, l, i)) &
-                                    *s_M*s_P/(s_M - s_P)
-                                flux_src_rs${XYZ}$_vf(j, k, l, i) = &
-                                    (s_M*qR_prim_rs${XYZ}$_vf(j + 1, k, l, i) &
-                                     - s_P*qL_prim_rs${XYZ}$_vf(j, k, l, i)) &
-                                    /(s_M - s_P)
-                            end do
-
-                            ! Xi field
-                            !if ( hyperelasticity ) then
-                            !    do i = 1, num_dims
-                            !      flux_rs${XYZ}$_vf(j, k, l, xibeg - 1 + i) = &
-                            !        (s_M*rho_R*vel_R(dir_idx(1))*xi_field_R(i) &
-                            !         - s_P*rho_L*vel_L(dir_idx(1))*xi_field_L(i) &
-                            !         + s_M*s_P*(rho_L*xi_field_L(i) &
-                            !                    - rho_R*xi_field_R(i))) &
-                            !        /(s_M - s_P)
-                            !    end do
-                            !end if
-
-                            ! Div(U)?
-                            !$acc loop seq
-                            do i = 1, num_dims
-                                vel_src_rs${XYZ}$_vf(j, k, l, dir_idx(i)) = &
-                                    (xi_M*(rho_L*vel_L(dir_idx(i))* &
-                                           (s_L - vel_L(dir_idx(1))) - &
-                                           pres_L*dir_flg(dir_idx(i))) - &
-                                     xi_P*(rho_R*vel_R(dir_idx(i))* &
-                                           (s_R - vel_R(dir_idx(1))) - &
-                                           pres_R*dir_flg(dir_idx(i)))) &
-                                    /(xi_M*rho_L*(s_L - vel_L(dir_idx(1))) - &
-                                      xi_P*rho_R*(s_R - vel_R(dir_idx(1))))
-                            end do
-
-                            if (bubbles_euler) then
-                                ! From HLLC: Kills mass transport @ bubble gas density
-                                if (num_fluids > 1) then
-                                    flux_rs${XYZ}$_vf(j, k, l, contxe) = 0._wp
-                                end if
-                            end if
-
-                            if (chemistry) then
-                                !$acc loop seq
-                                do i = chemxb, chemxe
-                                    Y_L = qL_prim_rs${XYZ}$_vf(j, k, l, i)
-                                    Y_R = qR_prim_rs${XYZ}$_vf(j + 1, k, l, i)
-
-                                    flux_rs${XYZ}$_vf(j, k, l, i) = (s_M*Y_R*rho_R*vel_R(dir_idx(norm_dir)) &
-                                                                     - s_P*Y_L*rho_L*vel_L(dir_idx(norm_dir)) &
-                                                                     + s_M*s_P*(Y_L*rho_L - Y_R*rho_R)) &
-                                                                    /(s_M - s_P)
-                                    flux_src_rs${XYZ}$_vf(j, k, l, i) = 0._wp
-                                end do
-                            end if
-
-                            #:if (NORM_DIR == 2)
-                                if (cyl_coord) then
-                                    !Substituting the advective flux into the inviscid geometrical source flux
-                                    !$acc loop seq
-                                    do i = 1, E_idx
-                                        flux_gsrc_rs${XYZ}$_vf(j, k, l, i) = flux_rs${XYZ}$_vf(j, k, l, i)
-                                    end do
-                                    ! Recalculating the radial momentum geometric source flux
-                                    flux_gsrc_rs${XYZ}$_vf(j, k, l, contxe + dir_idx(1)) = &
-                                        (s_M*(rho_R*vel_R(dir_idx(1)) &
-                                              *vel_R(dir_idx(1))) &
-                                         - s_P*(rho_L*vel_L(dir_idx(1)) &
-                                                *vel_L(dir_idx(1))) &
-                                         + s_M*s_P*(rho_L*vel_L(dir_idx(1)) &
-                                                    - rho_R*vel_R(dir_idx(1)))) &
-                                        /(s_M - s_P)
-                                    ! Geometrical source of the void fraction(s) is zero
-                                    !$acc loop seq
-                                    do i = advxb, advxe
-                                        flux_gsrc_rs${XYZ}$_vf(j, k, l, i) = flux_rs${XYZ}$_vf(j, k, l, i)
-                                    end do
-                                end if
-                            #:endif
-
+                              ! Compute energy fluxes
+                              uflx_eden = qint_iu * (rhoetot + qint_gdpres)
+                              flux_rs${XYZ}$_vf(j, k, l, E_idx) = uflx_eden
                         end do
                     end do
                 end do

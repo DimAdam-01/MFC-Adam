@@ -37,7 +37,7 @@ u_l = 0
 u_r = -487.34
 
 L = 0.12
-Nx = 1200 * args.scale
+Nx = 400 * args.scale
 dx = L / Nx
 dt = dx / abs(u_r) * 0.02
 Tend = 230e-6
@@ -73,7 +73,7 @@ case = {
     "weno_avg": "F",
     "mapped_weno": "T",
     "mp_weno": "T",
-    "riemann_solver": 2,
+    "riemann_solver": 1,
     "wave_speeds": 1,
     "avg_state": 2,
     "bc_x%beg": -2,
