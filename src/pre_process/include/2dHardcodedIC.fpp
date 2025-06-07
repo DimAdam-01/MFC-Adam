@@ -1,9 +1,20 @@
 #:def Hardcoded2DVariables()
     real(wp) :: eps
-    real(wp) :: r, rmax, gam, umax, p0
+    real(wp) :: r, rmax, gam, umax, p0,delta_omega
     real(wp) :: rhoH, rhoL, pRef, pInt, h, lam, wl, amp, intH, intL, alph
     real(wp) :: x1c,y1c,x2c,y2c,Rvortex,r1c,r2c,cvortex,u1c,u2c,v1c,v2c,u,pres! This are coordinates for vortices
     real(wp) :: y1,y2,y3,y4,y5,y6,y7,y8,Lx,Ly,Sl,lambda,temp_val
+    real(wp) :: YN2_O,YN2_F,YH2_F,YH2_O,YO2_O,YO2_F,YH2O_F,YH2O_O, YH_F,YH_O,YO_F,YO_O
+    real(wp) ::  YOH_F,YOH_O,YHO2_F,YHO2_O,YH2O2_F,YH2O2_O,YAR_O,YAR_F
+      real(wp), parameter :: U_fuel = 972.0_wp      ! m/s
+      real(wp), parameter :: U_oxidizer = 1633.0_wp
+      real(wp), parameter :: beta_deg = 33.0_wp
+      real(wp), parameter :: beta     = beta_deg * acos(-1.0_wp)/180.0_wp
+      real(wp), parameter :: T_F =  545.0_wp
+      real(wp), parameter :: T_O = 1475.0_wp
+      real(wp), parameter :: rho_F = 0.354187_wp   ! fuel‐stream density (H₂/N₂ @ 545 K)
+      real(wp), parameter :: rho_O = 0.202889_wp   ! oxidizer‐stream density (vitiated‐air @ 1475 K)
+
     integer  :: Nx1,Nx2,Ny1,Ny2,Ny3,Ny4,Ny5,Ny6,mpi_size,ierr,global_idx
     integer  :: mpi_rank,lol,idx,stdout,i_min,i_max,local_x_min,local_x_max
 integer :: local_start, local_end, local_n
@@ -504,10 +515,136 @@ end do
 end do
 
 ! Set element 3 to zero (as requested)
-q_prim_vf(3)%sf(i, j, 0) = 0.0_wp
+    q_prim_vf(3)%sf(i, j, 0) = 0.0_wp
     ! print *, y_cc(0)
      q_prim_vf(2)%sf(i,j,0)=q_prim_vf(2)%sf(i,j,0)+(0.1_wp*0.00001*366.11_wp)*sin(2.0_wp*pi*(y_cc(j)*6.0_wp/(0.0292888_wp/2.0_wp)))
-      case default
+
+
+   case(212)
+
+      delta_omega = 1.0_wp
+      YH2_F   = 0.05_wp          ! Hydrogen in fuel stream
+      YO2_F   = 0.0_wp           ! Oxygen in fuel stream  
+      YH2O_F  = 0.0_wp           ! Water vapor in fuel stream
+      YN2_F   = 0.95_wp          ! Nitrogen in fuel stream (1.0 - 0.05 - 0.0 - 0.0)
+      YH_F    = 0.0_wp           ! H radical in fuel stream
+      YO_F    = 0.0_wp           ! O radical in fuel stream
+      YOH_F   = 0.0_wp           ! OH radical in fuel stream
+      YHO2_F  = 0.0_wp           ! HO2 radical in fuel stream
+      YH2O2_F = 0.0_wp           ! H2O2 in fuel stream
+      YAR_F = 0.0_wp           ! H2O2 in fuel stream
+      ! Oxidizer stream (O) mass fractions  
+      YH2_O   = 0.0_wp           ! Hydrogen in oxidizer stream
+      YO2_O   = 0.278_wp         ! Oxygen in oxidizer stream
+      YH2O_O  = 0.17_wp          ! Water vapor in oxidizer stream
+      YN2_O   = 0.552_wp         ! Nitrogen in oxidizer stream (1.0 - 0.278 - 0.17 - radicals)
+      YH_O    = 5.60e-7_wp       ! H radical in oxidizer stream
+      YO_O    = 1.55e-4_wp       ! O radical in oxidizer stream
+      YOH_O   = 1.83e-3_wp       ! OH radical in oxidizer stream
+      YHO2_O  = 5.10e-6_wp       ! HO2 radical in oxidizer stream
+      YH2O2_O = 2.50e-7_wp       ! H2O2 in oxidizer stream
+      YAR_F = 0.0_wp           ! H2O2 in fuel stream
+
+    if (y_cc(j) .ge. x_cc(i)*tan(beta)-60.0_wp) then
+
+      q_prim_vf(1)%sf(i,j,0) = 0.5_wp * ((rho_F + rho_O) + &
+                                        (rho_F - rho_O) * &
+                                        tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+
+        ! x-velocity component (u1) with hyperbolic tangent profile
+        q_prim_vf(2)%sf(i,j,0) = 0.5_wp * ((U_fuel + U_oxidizer) + &
+                                           (U_fuel - U_oxidizer) * &
+                                           tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+        ! Alternative simplified form:
+        ! q_prim_vf(2)%sf(0,j,0) = 1303.5_wp - 330.5_wp * tanh(2.0_wp * y_cc(j) / delta_omega)
+        
+        ! y-velocity component (u2) - initially zero
+        q_prim_vf(3)%sf(i,j,0) = 0.0_wp
+        
+        ! z-velocity component (u3) - initially zero  
+        q_prim_vf(4)%sf(i,j,0) = 94232.25
+
+        q_prim_vf(6)%sf(i,j,0) = 0.5_wp * ((YH2_F + YH2_O) + &
+                                        (YH2_F - YH2_O) * &
+                                        tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+        ! Y_{H} (index 7)  
+          q_prim_vf(7)%sf(i,j,0) = 0.5_wp * ((YH_F + YH_O) + &
+                                          (YH_F - YH_O) * &
+                                          tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+        ! Y_{O} (index 8)
+        q_prim_vf(8)%sf(i,j,0) = 0.5_wp * ((YO_F + YO_O) + &
+                                          (YO_F - YO_O) * &
+                                          tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+        ! Y_{O2} (index 9)
+        q_prim_vf(9)%sf(i,j,0) = 0.5_wp * ((YO2_F + YO2_O) + &
+                                          (YO2_F - YO2_O) * &
+                                          tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+        ! Y_{OH} (index 10)
+        q_prim_vf(10)%sf(i,j,0) = 0.5_wp * ((YOH_F + YOH_O) + &
+                                            (YOH_F - YOH_O) * &
+                                            tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+        ! Y_{H2O} (index 11)
+        q_prim_vf(11)%sf(i,j,0) = 0.5_wp * ((YH2O_F + YH2O_O) + &
+                                            (YH2O_F - YH2O_O) * &
+                                            tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+        ! Y_{HO2} (index 12)
+        q_prim_vf(12)%sf(i,j,0) = 0.5_wp * ((YHO2_F + YHO2_O) + &
+                                            (YHO2_F - YHO2_O) * &
+                                            tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+        ! Y_{H2O2} (index 13)
+        q_prim_vf(13)%sf(i,j,0) = 0.5_wp * ((YH2O2_F + YH2O2_O) + &
+                                            (YH2O2_F - YH2O2_O) * &
+                                            tanh(2.0_wp * y_cc(j) / delta_omega))
+        
+        ! Y_{AR} (index 14) - No Argon
+        q_prim_vf(14)%sf(i,j,0) = 0.0_wp
+        
+        ! Y_{N2} (index 15) - Calculate as remainder to ensure sum = 1
+        q_prim_vf(15)%sf(i,j,0) = 1.0_wp - (q_prim_vf(6)%sf(0,j,0) + &   ! H2
+                                            q_prim_vf(7)%sf(0,j,0) + &   ! H
+                                            q_prim_vf(8)%sf(0,j,0) + &   ! O
+                                            q_prim_vf(9)%sf(0,j,0) + &   ! O2
+                                            q_prim_vf(10)%sf(0,j,0) + &  ! OH
+                                            q_prim_vf(11)%sf(0,j,0) + &  ! H2O
+                                            q_prim_vf(12)%sf(0,j,0) + &  ! HO2
+                                            q_prim_vf(13)%sf(0,j,0) + &  ! H2O2
+                                            q_prim_vf(14)%sf(0,j,0))     ! AR
+
+        
+            
+      else 
+      q_prim_vf(1)%sf(i,j,0)=0.260771_wp
+        q_prim_vf(2)%sf(i,j,0) = 1526.4_wp  ! u1 (streamwise velocity)
+        q_prim_vf(3)%sf(i,j,0) = 165.7_wp 
+       q_prim_vf(4)%sf(i,j,0) = 129951.0_wp
+       q_prim_vf(6)%sf(i,j,0) = YH2_O      ! H2
+    q_prim_vf(7)%sf(i,j,0) = YH_O       ! H
+    q_prim_vf(8)%sf(i,j,0) = YO_O       ! O
+    q_prim_vf(9)%sf(i,j,0) = YO2_O      ! O2
+    q_prim_vf(10)%sf(i,j,0) = YOH_O     ! OH
+    q_prim_vf(11)%sf(i,j,0) = YH2O_O    ! H2O
+    q_prim_vf(12)%sf(i,j,0) = YHO2_O    ! HO2
+    q_prim_vf(13)%sf(i,j,0) = YH2O2_O   ! H2O2
+    q_prim_vf(14)%sf(i,j,0) = YAR_O     ! AR
+    
+    ! Y_{N2} - Calculate as remainder
+    q_prim_vf(15)%sf(i,j,0) = 1.0_wp - (YH2_O + YH_O + YO_O + YO2_O + &
+                                        YOH_O + YH2O_O + YHO2_O + YH2O2_O + YAR_O)
+        ! For other i locations, you might want to copy the profile or set differently
+
+    endif
+
+        q_prim_vf(5)%sf(i,j,0) = 1.0_wp  ! volume fraction is always 1
+        case default
         if (proc_rank == 0) then
             call s_int_to_str(patch_id, iStr)
             call s_mpi_abort("Invalid hcid specified for patch "//trim(iStr))
