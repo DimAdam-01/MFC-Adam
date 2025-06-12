@@ -9,7 +9,7 @@
 integer :: local_start, local_end, local_n
 
   integer, parameter :: nFiles = 14
-  integer, parameter :: xRows  = 1001
+  integer, parameter :: xRows  = 1281
   integer, parameter :: Nrows  = xRows
 
   ! Variables for file reading and domain data
@@ -19,7 +19,7 @@ integer :: local_start, local_end, local_n
   character(len=100), dimension(nFiles)   :: fileNames
   character(len=20)       :: file_num_str
   character(len=6), parameter :: zeros_default = "000000"
-  character(len=*), parameter :: init_dir = "/u/dadam/MFC-Adam/examples/1D_reacting_shocktube/"
+  character(len=*), parameter :: init_dir = "/scratch/bbsc/dadam/MFC-Adam/examples/1D_reactive_shocktube/"
   integer                 :: f, iter, ios, unit
   logical                 :: files_loaded
   files_loaded=.false.
