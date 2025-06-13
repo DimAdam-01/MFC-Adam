@@ -21,12 +21,12 @@ sol_L.TPX =  300,  101325, 'H:1'
 
 Lx    = 0.05
 Ly    = 0.016
-Nx   = 1860
+Nx   = 1920
 Ny   = 640
 dx   = Lx / Nx
 dy   = Ly / Ny
-dt   = 3e-8
-Tend = 0.9e-4
+dt   = 0.7e-8
+Tend = 8e-5
 
 NT         = int(Tend / dt)
 SAVE_COUNT = 1
@@ -48,8 +48,8 @@ data = {
     "cyl_coord": "F",
     "dt": dt,
     "t_step_start": 0,
-    "t_step_stop": 1,
-    "t_step_save": 1,
+    "t_step_stop": NT,
+    "t_step_save": 1000,
     "t_step_print": 1,
     # Simulation Algorithm
     "model_eqns": 2,
@@ -85,7 +85,7 @@ data = {
     # Fluid Parameters (Heavy Gas)
     "fluid_pp(1)%gamma": 1.0e00 / (1.4e00 - 1.0e00),
     "fluid_pp(1)%pi_inf": 0.0e00,
-    "fluid_pp(1)%Re(1)": 1 / 0.0219,
+    "fluid_pp(1)%Re(1)":  1000000,
     # Fluid Parameters (Light Gas)
 
     # Body Forces

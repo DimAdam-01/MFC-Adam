@@ -271,7 +271,7 @@ integer :: local_start, local_end, local_n
       YH2O2_F = 0.0_wp           ! H2O2 in fuel stream
       ! Oxidizer stream (O) mass fractions  
       YH2_O   = 0.0_wp           ! Hydrogen in oxidizer stream
-      YO2_O   = 0.0_wp         ! Oxygen in oxidizer stream
+      YO2_O   = 0.232909_wp         ! Oxygen in oxidizer stream
       YH2O_O  = 0.0_wp          ! Water vapor in oxidizer stream
       YN2_O   =  0.767091_wp         ! Nitrogen in oxidizer stream (1.0 - 0.278 - 0.17 - radicals)
       YH_O    = 0.0_wp       ! H radical in oxidizer stream
@@ -284,8 +284,8 @@ integer :: local_start, local_end, local_n
         
 
         ! x-velocity component (u1) with hyperbolic tangent profile
-        q_prim_vf(2)%sf(i,j,0) = 0.5_wp * ((U_fuel + U_oxidizer) + &
-                                           (U_fuel - U_oxidizer) * &
+        q_prim_vf(2)%sf(i,j,0) = 0.5_wp * ((u_fuel + u_oxidizer) + &
+                                           (u_oxidizer - u_fuel) * &
                                            tanh(2.0_wp * y_cc(j) / delta_omega))
         
         ! Alternative simplified form:
@@ -302,42 +302,42 @@ integer :: local_start, local_end, local_n
 
 
          ! Y_{H2} (index 6)  
-        q_prim_vf(6)%sf(i,j,0) = 0.5_wp * ((YH2_F + YH2_O) + &
+        q_prim_vf(6)%sf(i,j,0) = 0.5_wp * ((YH2_F + YH2_O) - &
                                         (YH2_F - YH2_O) * &
                                         tanh(2.0_wp * y_cc(j) / delta_omega))
         
         ! Y_{H} (index 7)  
-          q_prim_vf(7)%sf(i,j,0) = 0.5_wp * ((YH_F + YH_O) + &
+          q_prim_vf(7)%sf(i,j,0) = 0.5_wp * ((YH_F + YH_O) - &
                                           (YH_F - YH_O) * &
                                           tanh(2.0_wp * y_cc(j) / delta_omega))
         
         ! Y_{O2} (index 8)
-        q_prim_vf(8)%sf(i,j,0) = 0.5_wp * ((YO2_F + YO2_O) + &
+        q_prim_vf(8)%sf(i,j,0) = 0.5_wp * ((YO2_F + YO2_O) - &
                                           (YO2_F - YO2_O) * &
                                           tanh(2.0_wp * y_cc(j) / delta_omega))
         ! Y_{OH} (index 9)
-        q_prim_vf(9)%sf(i,j,0) = 0.5_wp * ((YOH_F + YOH_O) + &
+        q_prim_vf(9)%sf(i,j,0) = 0.5_wp * ((YOH_F + YOH_O) - &
                                             (YOH_F - YOH_O) * &
                                             tanh(2.0_wp * y_cc(j) / delta_omega))
          
         ! Y_{O} (index 10)
-        q_prim_vf(10)%sf(i,j,0) = 0.5_wp * ((YO_F + YO_O) + &
+        q_prim_vf(10)%sf(i,j,0) = 0.5_wp * ((YO_F + YO_O) -&
                                           (YO_F - YO_O) * &
                                           tanh(2.0_wp * y_cc(j) / delta_omega))
         
        
         ! Y_{H2O} (index 11)
-        q_prim_vf(11)%sf(i,j,0) = 0.5_wp * ((YH2O_F + YH2O_O) + &
+        q_prim_vf(11)%sf(i,j,0) = 0.5_wp * ((YH2O_F + YH2O_O) - &
                                             (YH2O_F - YH2O_O) * &
                                             tanh(2.0_wp * y_cc(j) / delta_omega))
         
         ! Y_{HO2} (index 12)
-        q_prim_vf(12)%sf(i,j,0) = 0.5_wp * ((YHO2_F + YHO2_O) + &
+        q_prim_vf(12)%sf(i,j,0) = 0.5_wp * ((YHO2_F + YHO2_O) - &
                                             (YHO2_F - YHO2_O) * &
                                             tanh(2.0_wp * y_cc(j) / delta_omega))
         
         ! Y_{H2O2} (index 13)
-        q_prim_vf(13)%sf(i,j,0) = 0.5_wp * ((YH2O2_F + YH2O2_O) + &
+        q_prim_vf(13)%sf(i,j,0) = 0.5_wp * ((YH2O2_F + YH2O2_O) - &
                                             (YH2O2_F - YH2O2_O) * &
                                             tanh(2.0_wp * y_cc(j) / delta_omega))
         
