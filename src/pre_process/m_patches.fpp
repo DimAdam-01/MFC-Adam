@@ -28,6 +28,8 @@ module m_patches
 
     use m_mpi_common
 
+     use m_thermochem, only: &
+        num_species, molecular_weights, gas_constant
     implicit none
 
     private; public :: s_apply_domain_patches

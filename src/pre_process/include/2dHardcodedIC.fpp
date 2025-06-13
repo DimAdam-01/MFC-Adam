@@ -8,7 +8,7 @@
     integer  :: mpi_rank,lol,idx,stdout,i_min,i_max,local_x_min,local_x_max,k
 integer :: local_start, local_end, local_n
     real(wp) :: YN2_O,YN2_F,YH2_F,YH2_O,YO2_O,YO2_F,YH2O_F,YH2O_O, YH_F,YH_O,YO_F,YO_O
-    real(wp) ::  YOH_F,YOH_O,YHO2_F,YHO2_O,YH2O2_F,YH2O2_O,YAR_O,YAR_F, temp, sumMW
+    real(wp) ::  YOH_F,YOH_O,YHO2_F,YHO2_O,YH2O2_F,YH2O2_O,YAR_O,YAR_F, temp, sum_INVMW
       real(wp), parameter :: U_fuel = 724.0741_wp      ! m/s
       real(wp), parameter :: U_oxidizer = 2257.1586_wp
        real(wp), parameter :: delta_omega = 0.0001_wp
@@ -350,16 +350,17 @@ integer :: local_start, local_end, local_n
                                             q_prim_vf(10)%sf(0,j,0) + &  ! O
                                             q_prim_vf(11)%sf(0,j,0) + &  ! H2O
                                             q_prim_vf(12)%sf(0,j,0) + &  ! HO2
-                                            q_prim_vf(13)%sf(0,j,0) + &  ! H2O2
+                                            q_prim_vf(13)%sf(0,j,0) )   ! H2O2
  
+      sum_INVMW = 0.0_wp                              
      do k = 1, num_species
       ! species slot = 5 + k  (since slot 6→k=1, 7→k=2, …, 14→k=9)
-      sumMW = sumMW + molecular_weight(k) * q_prim_vf(chemxb - 1 + k)%sf(i,j,0)
+      sum_INVMW = sum_INVMW +  q_prim_vf(chemxb - 1 + k)%sf(i,j,0)/molecular_weights(k)
     end do
     temp = temp_fu + 0.5_wp * (temp_ox - temp_fu) * &
            (1.0_wp + tanh(2.0_wp * y_cc(j) / delta_omega))
    
-    q_prim_vf(1)%sf(i,j,0)= P_ref/(gas_constant*temp)*sumMW
+    q_prim_vf(1)%sf(i,j,0)= P_ref/(gas_constant*temp)/sum_INVMW
 
         case default
         if (proc_rank == 0) then
