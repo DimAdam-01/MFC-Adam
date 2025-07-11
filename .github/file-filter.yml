@@ -27,6 +27,7 @@ yml: &yml
   - '.github/workflows/bench.yml'
   - '.github/workflows/test.yml'
   - '.github/workflows/formatting.yml'
+  - '.github/workflows/thermochem.yml'
 
 checkall: &checkall
   - *fortran_src
