@@ -1,0 +1,64 @@
+  thermochem-lint:
+    name: Thermochemistry Lint
+    if: needs.file-changes.outputs.checkall == 'true'
+    needs: file-changes
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+      
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+      
+      - name: Install Dependencies
+        run: |
+          pip install cantera numpy
+          # Add any other dependencies pyro needs
+      
+      - name: Generate Test Thermochemistry
+        run: |
+          python3 -c "
+          import sys
+          sys.path.append('.')
+          import cantera as ct
+          import pyro
+          import os
+          
+          # Use the default h2o2.yaml case
+          solution = ct.Solution('h2o2.yaml')
+          
+          # Generate using single precision (like your code does)
+          real_type = 'real(sp)'
+          
+          # Generate the code
+          generated_code = pyro.FortranCodeGenerator().generate(
+              'm_thermochem',
+              solution,
+              pyro.CodeGenerationOptions(scalar_type=real_type)
+          )
+          
+          # Write to test file
+          with open('test_thermochem.f90', 'w') as f:
+              f.write(generated_code)
+          
+          print('Generated thermochemistry code successfully')
+          "
+      
+      - name: Check for Raw ACC Directives
+        run: |
+          if grep -H '!\$acc' test_thermochem.f90; then
+            echo "❌ Found raw ACC directives in generated thermochemistry code!"
+            echo "Problematic lines:"
+            grep -n '!\$acc' test_thermochem.f90
+            exit 1
+          else
+            echo "✅ No raw ACC directives found in generated code"
+          fi
+      
+      - name: Show Generated Code Sample
+        if: always()
+        run: |
+          echo "First 50 lines of generated code:"
+          head -50 test_thermochem.f90
