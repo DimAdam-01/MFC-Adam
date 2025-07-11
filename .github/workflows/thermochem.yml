@@ -15,7 +15,7 @@ jobs:
         id: changes
         with: 
           filters: ".github/file-filter.yml"
-
+  
   thermochem-lint:
     name: Thermochemistry Lint
     if: needs.file-changes.outputs.checkall == 'true'
@@ -30,21 +30,63 @@ jobs:
         with:
           python-version: '3.x'
       
-      - name: Install Dependencies
+      - name: Install Dependencies from pyproject.toml
         run: |
-          pip install cantera numpy
-          # Add any other dependencies pyro needs
+          # Install the toolchain dependencies which include cantera and pyrometheus
+          pip install -e ./toolchain/
+          
+          # Alternative approach: Extract and install specific packages
+          # This reads the pyproject.toml and installs cantera and pyrometheus with their specified versions
+          python3 -c "
+          import tomllib
+          import subprocess
+          import sys
+          
+          with open('toolchain/pyproject.toml', 'rb') as f:
+              data = tomllib.load(f)
+          
+          dependencies = data.get('project', {}).get('dependencies', [])
+          
+          # Find cantera and pyrometheus dependencies
+          target_packages = ['cantera', 'pyrometheus']
+          packages_to_install = []
+          
+          for dep in dependencies:
+              for pkg in target_packages:
+                  if dep.startswith(pkg):
+                      packages_to_install.append(dep)
+                      print(f'Found {pkg} dependency: {dep}')
+                      break
+          
+          if packages_to_install:
+              cmd = [sys.executable, '-m', 'pip', 'install'] + packages_to_install + ['numpy']
+              print(f'Installing: {\" \".join(packages_to_install)} numpy')
+              subprocess.run(cmd, check=True)
+          else:
+              print('No cantera/pyrometheus found in pyproject.toml, installing defaults')
+              subprocess.run([sys.executable, '-m', 'pip', 'install', 'cantera', 'pyrometheus', 'numpy'], check=True)
+          "
       
       - name: Generate Test Thermochemistry
         run: |
           python3 -c "
           import sys
-          sys.path.append('.')
           import cantera as ct
-          import pyro
+          import pyrometheus as pyro
+          
+          print('Successfully imported cantera and pyrometheus')
+          print(f'Cantera version: {ct.__version__}')
+          print(f'Pyrometheus version: {pyro.__version__}')
           
           # Use the default h2o2.yaml case (like your fallback logic)
-          solution = ct.Solution('h2o2.yaml')
+          try:
+              solution = ct.Solution('h2o2.yaml')
+              print(f'Loaded solution with {solution.n_species} species')
+          except Exception as e:
+              print(f'Error loading h2o2.yaml: {e}')
+              # Try with full path or different mechanism file
+              solution = ct.Solution('gri30.yaml')
+              print(f'Loaded GRI30 solution with {solution.n_species} species')
           
           # Generate using single precision (like your code does)
           real_type = 'real(sp)'
