@@ -101,4 +101,3 @@ jobs:
         with:
           name: generated-thermochem-code
           path: test_thermochem.f90
-          head -50 test_thermochem.f90
