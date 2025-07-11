@@ -1,3 +1,21 @@
+name: 'Thermochemistry Lint'
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  file-changes:
+    name: Detect File Changes
+    runs-on: 'ubuntu-latest'
+    outputs: 
+      checkall: ${{ steps.changes.outputs.checkall }}
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+      - name: Detect Changes
+        uses: dorny/paths-filter@v3
+        id: changes
+        with: 
+          filters: ".github/file-filter.yml"
+
   thermochem-lint:
     name: Thermochemistry Lint
     if: needs.file-changes.outputs.checkall == 'true'
@@ -24,15 +42,14 @@
           sys.path.append('.')
           import cantera as ct
           import pyro
-          import os
           
-          # Use the default h2o2.yaml case
+          # Use the default h2o2.yaml case (like your fallback logic)
           solution = ct.Solution('h2o2.yaml')
           
           # Generate using single precision (like your code does)
           real_type = 'real(sp)'
           
-          # Generate the code
+          # Generate the code using your existing logic
           generated_code = pyro.FortranCodeGenerator().generate(
               'm_thermochem',
               solution,
@@ -44,6 +61,7 @@
               f.write(generated_code)
           
           print('Generated thermochemistry code successfully')
+          print(f'Generated {len(generated_code)} characters of Fortran code')
           "
       
       - name: Check for Raw ACC Directives
@@ -57,8 +75,30 @@
             echo "✅ No raw ACC directives found in generated code"
           fi
       
+      - name: Check for Raw OMP Directives
+        run: |
+          if grep -H '!\$omp' test_thermochem.f90; then
+            echo "❌ Found raw OMP directives in generated thermochemistry code!"
+            echo "Problematic lines:"
+            grep -n '!\$omp' test_thermochem.f90
+            exit 1
+          else
+            echo "✅ No raw OMP directives found in generated code"
+          fi
+      
       - name: Show Generated Code Sample
         if: always()
         run: |
           echo "First 50 lines of generated code:"
+          head -50 test_thermochem.f90
+          echo ""
+          echo "Generated file size:"
+          wc -l test_thermochem.f90
+      
+      - name: Archive Generated Code
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: generated-thermochem-code
+          path: test_thermochem.f90
           head -50 test_thermochem.f90
