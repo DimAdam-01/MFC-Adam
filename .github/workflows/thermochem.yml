@@ -32,15 +32,18 @@ jobs:
       
       - name: Install Dependencies from pyproject.toml
         run: |
-          # Install the toolchain dependencies which include cantera and pyrometheus
-          pip install -e ./toolchain/
+          # Install tomli for Python < 3.11 compatibility
+          pip install tomli
           
-          # Alternative approach: Extract and install specific packages
-          # This reads the pyproject.toml and installs cantera and pyrometheus with their specified versions
+          # Extract and install cantera and pyrometheus with their specified versions
           python3 -c "
-          import tomllib
           import subprocess
           import sys
+          
+          try:
+              import tomllib
+          except ImportError:
+              import tomli as tomllib
           
           with open('toolchain/pyproject.toml', 'rb') as f:
               data = tomllib.load(f)
@@ -53,9 +56,9 @@ jobs:
           
           for dep in dependencies:
               for pkg in target_packages:
-                  if dep.startswith(pkg):
-                      packages_to_install.append(dep)
-                      print(f'Found {pkg} dependency: {dep}')
+                  if dep.strip().startswith(pkg):
+                      packages_to_install.append(dep.strip())
+                      print(f'Found {pkg} dependency: {dep.strip()}')
                       break
           
           if packages_to_install:
@@ -75,8 +78,6 @@ jobs:
           import pyrometheus as pyro
           
           print('Successfully imported cantera and pyrometheus')
-          print(f'Cantera version: {ct.__version__}')
-          print(f'Pyrometheus version: {pyro.__version__}')
           
           # Use the default h2o2.yaml case (like your fallback logic)
           try:
