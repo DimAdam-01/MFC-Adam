@@ -64,6 +64,24 @@ contains
 
     end subroutine s_perturb_sphere
 
+  impure subroutine E_vonK_sub(k, alpha, k0, u_rms, Ek_out)
+    real(wp), intent(in)  :: k
+
+    real(wp), intent(out) :: Ek_out
+    real(wp)              :: kappa, k0safe, alpha, k0, u_rms
+
+    alpha = 1.4527655304
+
+    k0 = 970.30721882
+
+    urms = 5.0
+     
+    k0safe = max(k0, sgm_eps)                ! protect against divide-by-zero
+    kappa  = k / k0safe
+    Ek_out = (alpha * (u_rms*u_rms) / k0safe) * (kappa**4) &
+           / ( (1._wp + kappa**2)**(17._wp/6._wp) )
+  end subroutine E_vonK_sub
+
     impure subroutine s_perturb_surrounding_flow(q_prim_vf)
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
         integer :: i, j, k !<  generic loop iterators
@@ -162,41 +180,51 @@ contains
         real(wp), dimension(3) :: velfluc, sig_tmp, sig, khat, xi
         real(wp) :: dk, alpha, Eksum, q, uu0, phi
         integer :: i, j, l, r, ierr
+        real(wp) :: Lx, Ly, Lz, dx, dy, dz, kmin, kmax
+   ! box lengths
+    Lx = x_cc(m) - x_cc(0)
+    Ly = y_cc(n) - y_cc(0)
+    if (p > 0) then
+        Lz = z_cc(p) - z_cc(0)
+    else
+        Lz = 0._wp
+    end if
 
+    ! spacings
+    dx = x_cc(1) - x_cc(0)
+    dy = y_cc(1) - y_cc(0)
+    dz = merge(z_cc(1) - z_cc(0), huge(1._wp), p > 0)
+
+    ! spectral bounds
+    kmin = 2._wp*pi / max(Lx, max(Ly, merge(Lz, 0._wp, p > 0)))
+    kmax = pi / min( min(dx,dy), merge(dz, huge(1._wp), p > 0) )
+
+    ! keep some margin around k0 to be safe
+    kmin = max(kmin, 1.e-6_wp*vk_k0)
+    kmax = max(kmax, 1.e+2_wp*vk_k0)
+
+    ! uniform k-spacing (simple and fine here)
+    dk = (kmax - kmin) / real(mixlayer_perturb_nk, wp)
         ! Initialize parameters
-        dk = 1._wp/mixlayer_perturb_nk
 
         ! Compute prescribed energy spectra
-        Eksum = 0._wp
-        do i = 1, mixlayer_perturb_nk
-            k(i) = dk*i
-            Ek(i) = (k(i)/mixlayer_perturb_k0)**4._wp*exp(-2._wp*(k(i)/mixlayer_perturb_k0)**2._wp)
-            Eksum = Eksum + Ek(i)
-        end do
+Eksum = 0._wp
+do i = 1, mixlayer_perturb_nk
+      k(i)  = kmin + dk*real(i-1, wp)
+    call E_vonK_sub(k(i), Ek(i))
+    Eksum = Eksum + Ek(i)
+end do
 
         ! Main loop
         do r = 0, n
             ! Compute prescribed Reynolds stress tensor with about half
             ! magnitude of its self-similar value
             Rij(:, :) = 0._wp
-            uu0 = patch_icpp(1)%vel(1)**2._wp &
-                  *(1._wp - tanh(y_cc(r)*mixlayer_vel_coef)**2._wp)
-            Rij(1, 1) = 0.05_wp*uu0
-            Rij(2, 2) = 0.03_wp*uu0
-            Rij(3, 3) = 0.03_wp*uu0
-            Rij(1, 2) = -0.02_wp*uu0
-            Rij(2, 1) = Rij(1, 2)
-
-            ! Cholesky decomposition for inhomogeneity and anisotropy
-            Lmat = 0._wp
-            Lmat(1, 1) = sqrt(Rij(1, 1))
-            if (abs(Lmat(1, 1)) < sgm_eps) Lmat(1, 1) = sgm_eps
-            Lmat(2, 1) = Rij(2, 1)/Lmat(1, 1)
-            Lmat(2, 2) = sqrt(Rij(2, 2) - Lmat(2, 1)**2._wp)
-            if (abs(Lmat(2, 2)) < sgm_eps) Lmat(2, 2) = sgm_eps
-            Lmat(3, 1) = Rij(3, 1)/Lmat(1, 1)
-            Lmat(3, 2) = (Rij(3, 2) - Lmat(3, 1)*Lmat(2, 1))/Lmat(2, 2)
-            Lmat(3, 3) = sqrt(Rij(3, 3) - Lmat(3, 1)**2._wp - Lmat(3, 2)**2._wp)
+    ! --- isotropic mapping (no anisotropy) ---
+    Lmat = 0._wp
+    Lmat(1,1) = 1._wp
+    Lmat(2,2) = 1._wp
+    Lmat(3,3) = 1._wp
 
             ! Compute perturbation for each Fourier component
             do i = 1, mixlayer_perturb_nk
@@ -216,6 +244,8 @@ contains
                 sig_tmp = f_cross(xi, khat)
                 sig_tmp = sig_tmp/sqrt(sum(sig_tmp**2._wp))
                 sig = f_cross(khat, sig_tmp)
+
+            q = sqrt( max(Ek(i)*dk / Eksum, 0._wp) )
 
                 ! Compute perturbation for each grid
                 do l = 0, p
