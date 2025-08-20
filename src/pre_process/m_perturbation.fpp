@@ -64,22 +64,17 @@ contains
 
     end subroutine s_perturb_sphere
 
-  impure subroutine E_vonK_sub(k, alpha, k0, u_rms, Ek_out)
+  impure subroutine E_vonK_sub(k, Ek_out)
     real(wp), intent(in)  :: k
 
     real(wp), intent(out) :: Ek_out
-    real(wp)              :: kappa, k0safe, alpha, k0, u_rms
+    real(wp)              :: kappa, Lambda, qq
 
-    alpha = 1.4527655304
+    Lambda = 0.96_wp/1000.0_wp/3.0_wp
 
-    k0 = 970.30721882
+    qq = 3.0_wp/2.0_wp*25.0_wp
 
-    urms = 5.0
-     
-    k0safe = max(k0, sgm_eps)                ! protect against divide-by-zero
-    kappa  = k / k0safe
-    Ek_out = (alpha * (u_rms*u_rms) / k0safe) * (kappa**4) &
-           / ( (1._wp + kappa**2)**(17._wp/6._wp) )
+    Ek_out = 2.0_wp/3.0_wp*Lambda*(1.606_wp*(k*Lambda)**(4.0_wp))/(1.359+(k*Lambda)**(2.0_wp))**(17.0_wp/6.0_wp)*qq
   end subroutine E_vonK_sub
 
     impure subroutine s_perturb_surrounding_flow(q_prim_vf)
@@ -91,20 +86,7 @@ contains
         call random_seed()
 
         ! Perturb partial density or velocity of surrounding flow by some random small amount of noise
-        do k = 0, p
-            do j = 0, n
-                do i = 0, m
-                    perturb_alpha = q_prim_vf(E_idx + perturb_flow_fluid)%sf(i, j, k)
-                    call random_number(rand_real)
-                    rand_real = rand_real*perturb_flow_mag
-                    q_prim_vf(mom_idx%beg)%sf(i, j, k) = (1._wp + rand_real)*q_prim_vf(mom_idx%beg)%sf(i, j, k)
-                    q_prim_vf(mom_idx%end)%sf(i, j, k) = rand_real*q_prim_vf(mom_idx%beg)%sf(i, j, k)
-                    if (bubbles_euler) then
-                        q_prim_vf(alf_idx)%sf(i, j, k) = (1._wp + rand_real)*q_prim_vf(alf_idx)%sf(i, j, k)
-                    end if
-                end do
-            end do
-        end do
+        
     end subroutine s_perturb_surrounding_flow
 
     impure subroutine s_elliptic_smoothing(q_prim_vf, bc_type)
@@ -173,63 +155,56 @@ contains
         !!              profile, using an inverter version of the spectrum-based
         !!              synthetic turbulence generation method proposed by
         !!              Guo et al. (2023, JFM).
-    subroutine s_perturb_mixlayer(q_prim_vf)
-        type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
-        real(wp), dimension(mixlayer_perturb_nk) :: k, Ek
-        real(wp), dimension(3, 3) :: Rij, Lmat
-        real(wp), dimension(3) :: velfluc, sig_tmp, sig, khat, xi
-        real(wp) :: dk, alpha, Eksum, q, uu0, phi
-        integer :: i, j, l, r, ierr
-        real(wp) :: Lx, Ly, Lz, dx, dy, dz, kmin, kmax
-   ! box lengths
+subroutine s_perturb_mixlayer(q_prim_vf)
+    type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
+    real(wp), dimension(100) :: k, Ek,dk
+    real(wp), dimension(3, 3) :: Rij, Lmat
+   real(wp), dimension(3) :: velfluc, sig_tmp, sig, khat, xi
+    real(wp) ::  arg, Eint, qi, psi, phase,phi
+    integer  :: i, j, r, ierr, seed,l
+    real(wp) :: Lx, Ly, dx, dy, kmin, kmax
+
+     mixlayer_perturb_nk = 100
+    ! --- box lengths and spacings (2D) ---
     Lx = x_cc(m) - x_cc(0)
     Ly = y_cc(n) - y_cc(0)
-    if (p > 0) then
-        Lz = z_cc(p) - z_cc(0)
-    else
-        Lz = 0._wp
-    end if
-
-    ! spacings
     dx = x_cc(1) - x_cc(0)
     dy = y_cc(1) - y_cc(0)
-    dz = merge(z_cc(1) - z_cc(0), huge(1._wp), p > 0)
 
-    ! spectral bounds
-    kmin = 2._wp*pi / max(Lx, max(Ly, merge(Lz, 0._wp, p > 0)))
-    kmax = pi / min( min(dx,dy), merge(dz, huge(1._wp), p > 0) )
+    print *, dx
+    ! --- spectral bounds (grid-safe) ---
+     kmin = 2*pi/Lx
+    kmax = 10*pi / min(dx, dy)
+! Logarithmic spacing concentrates points at low k
 
-    ! keep some margin around k0 to be safe
-    kmin = max(kmin, 1.e-6_wp*vk_k0)
-    kmax = max(kmax, 1.e+2_wp*vk_k0)
 
-    ! uniform k-spacing (simple and fine here)
-    dk = (kmax - kmin) / real(mixlayer_perturb_nk, wp)
-        ! Initialize parameters
+    ! --- energy spectrum & its integral ---
+    Eint = 0._wp
+  do i = 1, mixlayer_perturb_nk
+        k(i) = kmin * (kmax/kmin)**((i-1.0_wp)/(mixlayer_perturb_nk-1.0_wp))
+    end do
 
-        ! Compute prescribed energy spectra
-Eksum = 0._wp
-do i = 1, mixlayer_perturb_nk
-      k(i)  = kmin + dk*real(i-1, wp)
-    call E_vonK_sub(k(i), Ek(i))
-    Eksum = Eksum + Ek(i)
-end do
+    do i = 1, mixlayer_perturb_nk-1
+        dk(i) = k(i+1)-k(i)
+        print *, k(i), i
+        call E_vonK_sub(k(i), Ek(i))
+         print *, Ek(i)
+        Eint = Eint + Ek(i)*dk(i)
+    end do
 
-        ! Main loop
-        do r = 0, n
-            ! Compute prescribed Reynolds stress tensor with about half
-            ! magnitude of its self-similar value
-            Rij(:, :) = 0._wp
-    ! --- isotropic mapping (no anisotropy) ---
+print *, Eint
+   
+
+    ! --- no anisotropy mapping for now ---
+    Rij = 0._wp
     Lmat = 0._wp
-    Lmat(1,1) = 1._wp
-    Lmat(2,2) = 1._wp
-    Lmat(3,3) = 1._wp
+    Lmat(1,1) = 1._wp;  Lmat(2,2) = 1._wp;  Lmat(3,3) = 1._wp
 
-            ! Compute perturbation for each Fourier component
-            do i = 1, mixlayer_perturb_nk
-                ! Generate random numbers for unit wavevector khat,
-                ! random unit vector xi, and random mode phase phi
+
+    ! --- build perturbations (2D: r loops over y) ---
+    do r = 0, n
+
+        do i = 1, mixlayer_perturb_nk-1
                 if (proc_rank == 0) then
                     call s_generate_random_perturbation(khat, xi, phi, i, y_cc(r))
                 end if
@@ -244,25 +219,25 @@ end do
                 sig_tmp = f_cross(xi, khat)
                 sig_tmp = sig_tmp/sqrt(sum(sig_tmp**2._wp))
                 sig = f_cross(khat, sig_tmp)
+                
+            ! correct per-mode amplitude: qi = sqrt(E(k_i) * dk)
+            qi = sqrt( max(Ek(i)*dk(i), 0._wp) )
 
-            q = sqrt( max(Ek(i)*dk / Eksum, 0._wp) )
-
-                ! Compute perturbation for each grid
-                do l = 0, p
-                    do j = 0, m
-                        q = sqrt(Ek(i)/Eksum)
-                        alpha = k(i)*(khat(1)*x_cc(j) + khat(2)*y_cc(r) + khat(3)*z_cc(l)) + 2._wp*pi*phi
-                        velfluc = 2._wp*q*sig*cos(alpha)
+            ! add perturbation (2D: l=0 only)
+                           do l = 0, p
+            do j = 0, m
+                        arg = k(i)*(khat(1)*x_cc(j) + khat(2)*y_cc(r) + khat(3)*z_cc(l)) + 2._wp*pi*phi
+                        velfluc = 2._wp*qi*sig*cos(arg)
                         velfluc = matmul(Lmat, velfluc)
                         q_prim_vf(momxb)%sf(j, r, l) = q_prim_vf(momxb)%sf(j, r, l) + velfluc(1)
                         q_prim_vf(momxb + 1)%sf(j, r, l) = q_prim_vf(momxb + 1)%sf(j, r, l) + velfluc(2)
                         q_prim_vf(momxb + 2)%sf(j, r, l) = q_prim_vf(momxb + 2)%sf(j, r, l) + velfluc(3)
-                    end do
-                end do
+            end do
             end do
         end do
-
+    end do
     end subroutine s_perturb_mixlayer
+
 
     subroutine s_generate_random_perturbation(khat, xi, phi, ik, yloc)
         integer, intent(in) :: ik

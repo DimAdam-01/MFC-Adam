@@ -11,23 +11,20 @@ M0 = 0.2  # Mach number
 gamma = 1.4
 
 # Free stream velocity & pressure
-u0 = 100
+u0 = 1.0
 pres0 = 1.0 / (gamma * M0**2)
 
 # Domain size
 Lx = 0.01152
 Ly = 0.01152
-Lz = 0.01152
 
 # Number of grid cells
-Nx = 128
-Ny = 128
-Nz = 128
+Nx = 1023
+Ny = 1023
 
 # Grid spacing
 dx = Lx / float(Nx)
 dy = Ly / float(Ny)
-dz = Lz / float(Nz)
 
 # Time advancement
 cfl = 0.5
@@ -52,11 +49,9 @@ print(
             "x_domain%end": Lx,
             "y_domain%beg": -Ly / 2.0,
             "y_domain%end": Ly / 2.0,
-            "z_domain%beg": 0.0,
-            "z_domain%end": Lz,
             "m": Nx,
             "n": Ny,
-            "p": Nz,
+            "p": 0 ,
             "dt": dt,
             "t_step_start": t_step_start,
             "t_step_stop": t_step_stop,
@@ -77,8 +72,6 @@ print(
             "bc_x%end": -1,
             "bc_y%beg": -1,
             "bc_y%end": -1,
-            "bc_z%beg": -1,
-            "bc_z%end": -1,
             "viscous": "T",
             # Formatted Database Files Structure Parameters
             "format": 1,
@@ -90,18 +83,15 @@ print(
             "qm_wrt": "T",
             "liutex_wrt": "T",
             # Patch 1
-            "patch_icpp(1)%geometry": 9,
+            "patch_icpp(1)%geometry": 3,
             "patch_icpp(1)%x_centroid": Lx / 2.0,
             "patch_icpp(1)%y_centroid": 0.0,
-            "patch_icpp(1)%z_centroid": Lz / 2.0,
             "patch_icpp(1)%length_x": Lx,
-            "patch_icpp(1)%length_y": Ly,
-            "patch_icpp(1)%length_z": Lz,
+            "patch_icpp(1)%length_y": 1e6,
             "patch_icpp(1)%alpha_rho(1)": 1.0,
             "patch_icpp(1)%alpha(1)": 1.0,
             "patch_icpp(1)%vel(1)": 100,
             "patch_icpp(1)%vel(2)": 0.0,
-            "patch_icpp(1)%vel(3)": 0.0,
             "patch_icpp(1)%pres": pres0,
             # Mixing layer
             "mixlayer_vel_profile": "F",
@@ -114,4 +104,3 @@ print(
         }
     )
 )
-
