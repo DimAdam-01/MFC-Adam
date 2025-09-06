@@ -13,7 +13,7 @@ module m_chemistry
         get_mole_fractions, get_species_binary_mass_diffusivities, &
         get_species_mass_diffusivities_mixavg, gas_constant, get_mixture_molecular_weight, &
         get_mixture_energy_mass, get_mixture_thermal_conductivity_mixavg, get_species_enthalpies_rt, &
-        get_mixture_viscosity_mixavg
+        get_mixture_viscosity_mixavg,get_mixture_specific_heat_cp_mass
 
     use m_global_parameters
 
@@ -33,11 +33,14 @@ contains
 
         real(wp), intent(inout) :: T_L, T_R, Re_L, Re_R
         real(wp), dimension(num_species), intent(inout) :: Ys_R, Ys_L
+        real(wp) :: muref, Tref, S
 
-        call get_mixture_viscosity_mixavg(T_L, Ys_L, Re_L)
-        call get_mixture_viscosity_mixavg(T_R, Ys_R, Re_R)
-        Re_L = 1.0_wp/Re_L
-        Re_R = 1.0_wp/Re_R
+        muref = 1.716_wp*10.0_wp**(-5.0_wp)
+        Tref = 273.15_wp
+        S= 110.14_wp
+
+        Re_L = 1.0_wp/(muref*(T_L/Tref)**(1.5_wp)*(Tref+S)/(T_L+S))
+        Re_R = 1.0_wp/(muref*(T_R/Tref)**(1.5_wp)*(Tref+S)/(T_R+S))
 
     end subroutine compute_viscosity_and_inversion
 
@@ -160,9 +163,9 @@ contains
 
         integer, intent(in) :: idir
 
-        real(wp), dimension(num_species) :: Xs_L, Xs_R, Xs_cell, Ys_L, Ys_R, Ys_cell
+        real(wp), dimension(num_species) :: Ys_L, Ys_R, Ys_cell
         real(wp), dimension(num_species) :: mass_diffusivities_mixavg1, mass_diffusivities_mixavg2
-        real(wp), dimension(num_species) :: mass_diffusivities_mixavg_Cell, dXk_dxi, h_l, h_r, h_k
+        real(wp), dimension(num_species) :: mass_diffusivities_mixavg_Cell, dYk_dxi, h_l, h_r, h_k
         real(wp), dimension(num_species) :: Mass_Diffu_Flux
         real(wp) :: Mass_Diffu_Energy
         real(wp) :: MW_L, MW_R, MW_cell, Rgas_L, Rgas_R, T_L, T_R, P_L, P_R, rho_L, rho_R, rho_cell, rho_Vic
@@ -170,6 +173,13 @@ contains
 
         integer :: x, y, z, i, n, eqn
         integer, dimension(3) :: offsets
+        real(wp) :: muref, Tref, S,mu1, mu2
+        real(wp) :: Prandtl,Cp_L,Cp_R
+
+        muref = 1.716_wp*10.0_wp**(-5.0_wp)
+        Tref = 273.15_wp
+        S= 110.14_wp
+        Prandtl = 0.739_wp
 
         isc1 = irx; isc2 = iry; isc3 = irz
 
@@ -210,9 +220,6 @@ contains
                         call get_mixture_molecular_weight(Ys_R, MW_R)
                         MW_cell = 0.5_wp*(MW_L + MW_R)
 
-                        call get_mole_fractions(MW_L, Ys_L, Xs_L)
-                        call get_mole_fractions(MW_R, Ys_R, Xs_R)
-
                         ! Calculate gas constants and thermodynamic properties
                         Rgas_L = gas_constant/MW_L
                         Rgas_R = gas_constant/MW_R
@@ -229,13 +236,18 @@ contains
                         rho_cell = 0.5_wp*(rho_L + rho_R)
                         dT_dxi = (T_R - T_L)/grid_spacing
 
+                        mu1=(muref*(T_L/Tref)**(1.5_wp)*(Tref+S)/(T_L+S))
+                        mu2=(muref*(T_R/Tref)**(1.5_wp)*(Tref+S)/(T_R+S))
+
+                        call get_mixture_specific_heat_cp_mass(T_L, Ys_L, Cp_L)
+                        call get_mixture_specific_heat_cp_mass(T_R, Ys_R, Cp_R)
+                        
+                        lambda_L = mu1*Cp_L/Prandtl
+                        lambda_R = mu2*Cp_R/Prandtl
+
+                        mass_diffusivities_mixavg1 = mu1/rho_L/Prandtl
+                        mass_diffusivities_mixavg2 = mu2/rho_R/ Prandtl
                         ! Get transport properties
-                        call get_species_mass_diffusivities_mixavg(P_L, T_L, Ys_L, mass_diffusivities_mixavg1)
-                        call get_species_mass_diffusivities_mixavg(P_R, T_R, Ys_R, mass_diffusivities_mixavg2)
-
-                        call get_mixture_thermal_conductivity_mixavg(T_L, Ys_L, lambda_L)
-                        call get_mixture_thermal_conductivity_mixavg(T_R, Ys_R, lambda_R)
-
                         call get_species_enthalpies_rt(T_L, h_l)
                         call get_species_enthalpies_rt(T_R, h_r)
 
@@ -244,9 +256,8 @@ contains
                         do i = chemxb, chemxe
                             h_l(i - chemxb + 1) = h_l(i - chemxb + 1)*gas_constant*T_L/molecular_weights(i - chemxb + 1)
                             h_r(i - chemxb + 1) = h_r(i - chemxb + 1)*gas_constant*T_R/molecular_weights(i - chemxb + 1)
-                            Xs_cell(i - chemxb + 1) = 0.5_wp*(Xs_L(i - chemxb + 1) + Xs_R(i - chemxb + 1))
                             h_k(i - chemxb + 1) = 0.5_wp*(h_l(i - chemxb + 1) + h_r(i - chemxb + 1))
-                            dXk_dxi(i - chemxb + 1) = (Xs_R(i - chemxb + 1) - Xs_L(i - chemxb + 1))/grid_spacing
+                            dYk_dxi(i - chemxb + 1) = (Ys_R(i - chemxb + 1) - Ys_L(i - chemxb + 1))/grid_spacing
                         end do
 
                         ! Calculate mixture-averaged diffusivities
@@ -254,7 +265,7 @@ contains
                         do i = chemxb, chemxe
                             mass_diffusivities_mixavg_Cell(i - chemxb + 1) = &
                                 (mass_diffusivities_mixavg2(i - chemxb + 1) + mass_diffusivities_mixavg1(i - chemxb + 1))/ &
-                                2.0_wp*(1.0_wp - Xs_cell(i - chemxb + 1))/(1.0_wp - Ys_cell(i - chemxb + 1))
+                                2.0_wp
                         end do
 
                         lambda_Cell = 0.5_wp*(lambda_R + lambda_L)
@@ -266,8 +277,7 @@ contains
                         $:GPU_LOOP(parallelism='[seq]')
                         do eqn = chemxb, chemxe
                             Mass_Diffu_Flux(eqn - chemxb + 1) = rho_cell*mass_diffusivities_mixavg_Cell(eqn - chemxb + 1)* &
-                                                                molecular_weights(eqn - chemxb + 1)/MW_cell*dXk_dxi(eqn - chemxb + 1)
-                            rho_Vic = rho_Vic + Mass_Diffu_Flux(eqn - chemxb + 1)
+                                                                dYk_dxi(eqn - chemxb + 1)
                             Mass_Diffu_Energy = Mass_Diffu_Energy + h_k(eqn - chemxb + 1)*Mass_Diffu_Flux(eqn - chemxb + 1)
                         end do
 

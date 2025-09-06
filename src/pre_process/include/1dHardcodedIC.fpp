@@ -4,9 +4,6 @@
 
 #:def Hardcoded1D()
     select case (patch_icpp(patch_id)%hcid)
-    case (170)
-        ! This hardcoded case can be used to start a simulation with initial conditions given from a known 1D profile (e.g. Cantera, SDtoolbox)
-        @: HardcodedReadValues()
 
     case (180)
         ! This is patch is hard-coded for test suite optimization used in the

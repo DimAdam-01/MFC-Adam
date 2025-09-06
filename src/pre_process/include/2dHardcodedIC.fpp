@@ -4,7 +4,14 @@
     real(wp) :: r, rmax, gam, umax, p0
     real(wp) :: rhoH, rhoL, pRef, pInt, h, lam, wl, amp, intH, intL, alph
     real(wp) :: factor
+  real(wp), parameter :: Ly_param = 0.00775735_wp       ! <-- set L_y here
+  real(wp), parameter :: A_param  = 0.1_wp*96.9880867_wp*10.0_wp**(-4.0_wp)        ! <-- e.g. 0.1*dL
+  integer,  parameter :: Nwaves   = 6                       ! integer waves across Ly
 
+  ! locals
+  integer :: v, klo, khi, kmid
+  real(wp) :: yy0, yrel, theta, dx_front, sss, aaa
+integer :: il, iu, jl, ju
     eps = 1.e-9_wp
 #:enddef
 
@@ -156,10 +163,8 @@
             q_prim_vf(E_idx)%sf(i, j, 0) = 3.e-5_wp
         end if
 
-    case (270)
-        ! This hardcoded case extrudes a 1D profile to initialize a 2D simulation domain
-        @: HardcodedReadValues()
-
+    
+    
     case (280)
         ! This is patch is hard-coded for test suite optimization used in the
         ! 2D_isentropicvortex case:
