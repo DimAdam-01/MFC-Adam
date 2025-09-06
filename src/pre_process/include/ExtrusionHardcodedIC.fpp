@@ -19,7 +19,7 @@
     logical :: files_loaded
     data files_loaded /.false./
     real(wp) :: domain_xstart, domain_xend, domain_ystart, domain_yend
-    character(len=*), parameter :: init_dir = "/Users/dimitriosadam/Desktop/MFC-Adam/examples/"
+    character(len=*), parameter :: init_dir = "/u/dadam/MFC-Adam/"
     character(len=20) :: file_num_str
     character(len=20) :: zeros_part
     character(len=6),  parameter :: zeros_default = "000001"

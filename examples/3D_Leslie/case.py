@@ -50,12 +50,12 @@ dy = Ly / float(Ny)
 dz = Lz / float(Nz)
 
 # Time advancement
-cfl = 0.5
-T = 150.0
-dt = cfl * dx / (u0 / M0 + 1)
+cfl = 0.4
+T = 384.0*10**(-6)
+dt = dx/cfl/1400.0
 Ntfinal = int(T / dt)
 Ntstart = 0
-Nfiles = 30
+Nfiles = 40
 t_save = int(math.ceil((Ntfinal - 0) / float(Nfiles)))
 Nt = t_save * Nfiles
 t_step_start = Ntstart
@@ -89,7 +89,7 @@ print(
             "weno_order": 5,
             "weno_eps": 1.0e-40,
             "weno_Re_flux": "F",
-            "wenoz": "T",
+            "wenoz": "F",
             "riemann_solver": 2,
             "wave_speeds": 1,
             "avg_state": 2,
@@ -109,7 +109,7 @@ print(
             "precision": 2,
             "cons_vars_wrt": "T",
             "prim_vars_wrt": "T",
-            "parallel_io": "F",
+            "parallel_io": "T",
             "fd_order": 1,
  "chem_wrt_T"                  : "T",          
   # Patch 1
