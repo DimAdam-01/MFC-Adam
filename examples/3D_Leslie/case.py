@@ -50,9 +50,9 @@ dy = Ly / float(Ny)
 dz = Lz / float(Nz)
 
 # Time advancement
-cfl = 0.4
+cfl = 0.3
 T = 384.0*10**(-6)
-dt = dx/cfl/1400.0
+dt = dx/cfl/1460.0/1000
 Ntfinal = int(T / dt)
 Ntstart = 0
 Nfiles = 40

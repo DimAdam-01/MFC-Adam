@@ -163,7 +163,8 @@ integer :: il, iu, jl, ju
             q_prim_vf(E_idx)%sf(i, j, 0) = 3.e-5_wp
         end if
 
-    
+    case(270)
+    @: HardcodedReadValues()
     
     case (280)
         ! This is patch is hard-coded for test suite optimization used in the

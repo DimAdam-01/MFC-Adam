@@ -16,27 +16,47 @@
     character(len=200) :: errmsg
     real(wp), allocatable :: stored_values(:, :, :, :)          ! (x,y,z,var)
     real(wp), allocatable :: x_coords(:), y_coords(:), z_coords(:)
-    logical :: files_loaded
-    data files_loaded /.false./
+    logical :: files_loaded = .false.
     real(wp) :: domain_xstart, domain_xend, domain_ystart, domain_yend
-    character(len=*), parameter :: init_dir = "/u/dadam/MFC-Adam/"
+    character(len=*), parameter :: init_dir = "/u/dadam/MFC-Adam/examples/2D_Diffusion_Instabillities/" ! For example /home/MFC/examples/1D_Shock/D/
     character(len=20) :: file_num_str
     character(len=20) :: zeros_part
-    character(len=6),  parameter :: zeros_default = "000001"
+    character(len=6),  parameter :: zeros_default = "000000"
 #:enddef
 
 #:def HardcodedReadValues()
 
-    if (.not. files_loaded) then
+        if (.not. files_loaded) then
         max_files = sys_size
+
+        ! --- Try prim.1 with a few timestep paddings; keep the first that opens ---
+        write (file_num_str, '(I0)') 1
+
+        zeros_part = zeros_default
+        open (newunit=unit2, file=trim(init_dir)//"prim."//trim(file_num_str)//".00."//trim(zeros_part)//".dat", &
+              status='old', action='read', form='formatted', access='sequential', iostat=ios2, iomsg=errmsg)
+
+        if (ios2 /= 0) then
+            zeros_part = "000001"
+            open (newunit=unit2, file=trim(init_dir)//"prim."//trim(file_num_str)//".00."//trim(zeros_part)//".dat", &
+                  status='old', action='read', form='formatted', access='sequential', iostat=ios2, iomsg=errmsg)
+        end if
+        if (ios2 /= 0) then
+            zeros_part = "000000"
+            open (newunit=unit2, file=trim(init_dir)//"prim."//trim(file_num_str)//".00."//trim(zeros_part)//".dat", &
+                  status='old', action='read', form='formatted', access='sequential', iostat=ios2, iomsg=errmsg)
+        end if
+
+        if (ios2 /= 0) then
+            call s_mpi_abort( "OPEN failed for: "// &
+                trim(init_dir)//"prim."//trim(file_num_str)//".00."//trim(zeros_part)//".dat ; iomsg="//trim(errmsg) )
+        end if
+
+        ! --- Build full list with the detected zeros_part ---
         do f = 1, max_files
             write (file_num_str, '(I0)') f
-            fileNames(f) = trim(init_dir)//"prim."//trim(file_num_str)//".00."//zeros_default//".dat"
+            fileNames(f) = trim(init_dir)//"prim."//trim(file_num_str)//".00."//trim(zeros_part)//".dat"
         end do
-
-        ! Open first file once (needed for 1D/2D branches below)
-        open (newunit=unit2, file=trim(fileNames(1)), status='old', action='read', iostat=ios2)
-        if (ios2 /= 0) call s_mpi_abort("Error opening file: "//trim(fileNames(1)))
 
         select case (num_dims)
         case (1, 2)
