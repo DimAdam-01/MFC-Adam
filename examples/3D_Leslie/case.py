@@ -50,9 +50,9 @@ dy = Ly / float(Ny)
 dz = Lz / float(Nz)
 
 # Time advancement
-cfl = 0.3
+cfl = 0.4
 T = 384.0*10**(-6)
-dt = dx/cfl/1460.0/1000
+dt = dx/cfl/10000/10
 Ntfinal = int(T / dt)
 Ntstart = 0
 Nfiles = 40
@@ -86,13 +86,16 @@ print(
             "model_eqns": 2,
             "num_fluids": 1,
             "time_stepper": 3,
-            "weno_order": 5,
-            "weno_eps": 1.0e-40,
+            "weno_order": 3,
+    "weno_eps": 1e-16,
+    "weno_avg": "F",
+    "mapped_weno": "F",
+    "mp_weno": "F",
             "weno_Re_flux": "F",
             "wenoz": "F",
             "riemann_solver": 2,
             "wave_speeds": 1,
-            "avg_state": 2,
+            "avg_state": 1,
             "bc_x%beg": -1,
             "bc_x%end": -1,
             "bc_y%beg": -1,
