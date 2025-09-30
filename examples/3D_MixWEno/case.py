@@ -51,11 +51,11 @@ dz = Lz / float(Nz)
 
 # Time advancement
 cfl = 0.4
-T = 96.0*10**(-6)
-dt = dx/cfl/10000/2
+T = 384.0*10**(-6)
+dt = dx/cfl/10000/4
 Ntfinal = int(T / dt)
 Ntstart = 0
-Nfiles = 10
+Nfiles = 40
 t_save = int(math.ceil((Ntfinal - 0) / float(Nfiles)))
 Nt = t_save * Nfiles
 t_step_start = Ntstart
@@ -78,7 +78,7 @@ print(
             "n": Ny,
             "p": Nz,
             "dt": dt,
-            "t_step_start": 0,
+            "t_step_start": t_step_start,
             "t_step_stop": t_step_stop,
             "t_step_save": t_save,
             # Simulation Algorithm Parameters
@@ -86,21 +86,15 @@ print(
             "model_eqns": 2,
             "num_fluids": 1,
             "time_stepper": 3,
-          #  "recon_type" : 2,
-          #  "muscl_order" : 2,
-          #  "muscl_lim"  : 1,
             "weno_order": 5,
-    "weno_eps": 1e-20,
+    "weno_eps": 1e-16,
     "weno_avg": "T",
-    "mapped_weno": "F",#
-    "mp_weno": "F",
- #   "teno" : "T",
-  #  "teno_CT" : 10**(-8),
-   # "wenoz_q": 4,
-            "weno_Re_flux": "T",
-    #        "wenoz": "T",
+    "mapped_weno": "T",
+    "mp_weno": "T",
+            "weno_Re_flux": "F",
+            "wenoz": "F",
             "riemann_solver": 2,
-            "wave_speeds": 1,
+            "wave_speeds": 2,
             "avg_state": 2,
             "bc_x%beg": -1,
             "bc_x%end": -1,
