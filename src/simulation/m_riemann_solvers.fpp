@@ -2360,7 +2360,6 @@ contains
                             do j = is1%beg, is1%end
 
                                 !idx1 = 1; if (dir_idx(1) == 2) idx1 = 2; if (dir_idx(1) == 3) idx1 = 3
-
                                 $:GPU_LOOP(parallelism='[seq]')
                                 do i = 1, num_fluids
                                     alpha_L(i) = qL_prim_rs${XYZ}$_vf(j, k, l, E_idx + i)
@@ -4081,6 +4080,7 @@ contains
                         end do
                     else if (norm_dir == 2) then
                         Re_shear = Re_avg_rsy_vf(k_loop, j_loop, l_loop, 1)
+                       
                         Re_bulk = Re_avg_rsy_vf(k_loop, j_loop, l_loop, 2)
                         do i_dim = 1, num_dims
                             vel_src_at_interface(i_dim) = vel_src_rsy_vf(k_loop, j_loop, l_loop, i_dim)
@@ -4096,7 +4096,6 @@ contains
                     if (shear_stress) then
                         ! current_tau_shear = 0.0_wp
                         call s_calculate_shear_stress_tensor(vel_grad_avg, Re_shear, divergence_v, current_tau_shear)
-
                         do i_dim = 1, num_dims
                             flux_src_vf(momxb + i_dim - 1)%sf(j_loop, k_loop, l_loop) = &
                                 flux_src_vf(momxb + i_dim - 1)%sf(j_loop, k_loop, l_loop) - current_tau_shear(norm_dir, i_dim)
@@ -4108,6 +4107,7 @@ contains
                     end if
 
                     if (bulk_stress) then
+
                         ! current_tau_bulk = 0.0_wp
                         call s_calculate_bulk_stress_tensor(Re_bulk, divergence_v, current_tau_bulk)
 

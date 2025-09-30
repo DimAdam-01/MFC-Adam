@@ -129,7 +129,7 @@ contains
             buff_size = (igr_order - 1)/2 + 2
         elseif (recon_type == WENO_TYPE) then
             if (viscous) then
-                buff_size = 2*weno_polyn + 2
+                buff_size = 2*weno_polyn + 4
             else
                 buff_size = weno_polyn + 2
             end if

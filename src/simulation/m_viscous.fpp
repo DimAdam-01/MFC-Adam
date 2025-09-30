@@ -1088,18 +1088,18 @@ contains
 
                 if (norm_dir == 1) then
                     is1_viscous = ix; is2_viscous = iy; is3_viscous = iz
-                    recon_dir = 1; is1_viscous%beg = is1_viscous%beg + ${SCHEME}$_polyn
-                    is1_viscous%end = is1_viscous%end - ${SCHEME}$_polyn
+                    recon_dir = 1; is1_viscous%beg = is1_viscous%beg + ${SCHEME}$_polyn +2 
+                    is1_viscous%end = is1_viscous%end - ${SCHEME}$_polyn - 2
 
                 elseif (norm_dir == 2) then
                     is1_viscous = iy; is2_viscous = ix; is3_viscous = iz
-                    recon_dir = 2; is1_viscous%beg = is1_viscous%beg + ${SCHEME}$_polyn
-                    is1_viscous%end = is1_viscous%end - ${SCHEME}$_polyn
+                    recon_dir = 2; is1_viscous%beg = is1_viscous%beg + ${SCHEME}$_polyn +2
+                    is1_viscous%end = is1_viscous%end - ${SCHEME}$_polyn - 2
 
                 else
                     is1_viscous = iz; is2_viscous = iy; is3_viscous = ix
-                    recon_dir = 3; is1_viscous%beg = is1_viscous%beg + ${SCHEME}$_polyn
-                    is1_viscous%end = is1_viscous%end - ${SCHEME}$_polyn
+                    recon_dir = 3; is1_viscous%beg = is1_viscous%beg + ${SCHEME}$_polyn +2
+                    is1_viscous%end = is1_viscous%end - ${SCHEME}$_polyn -2 
 
                 end if
                 $:GPU_UPDATE(device='[is1_viscous, is2_viscous, is3_viscous, iv]')
@@ -1200,6 +1200,9 @@ contains
         real(wp), dimension(-buff_size_in:dim + buff_size_in), intent(in) :: dL
 
         integer :: i, j, k, l !< Generic loop iterators
+        real(wp), parameter :: c1 = 45._wp / 60._wp  ! Coefficient for (j+1/2), (j-1/2) term
+        real(wp), parameter :: c2 = -9._wp / 60._wp  ! Coefficient for (j+3/2), (j-3/2) term
+        real(wp), parameter :: c3 = 1._wp / 60._wp   ! Coefficient for (j+5/2), (j-5/2) term
 
         is1_viscous = ix
         is2_viscous = iy
@@ -1217,18 +1220,17 @@ contains
             ! cell-boundaries, to calculate the cell-averaged first-order
             ! spatial derivatives inside the cell.
 
-            $:GPU_PARALLEL_LOOP(collapse=3)
+            $:GPU_PARALLEL_LOOP(collapse=3,copyin='[c1,c2,c3]')
             do l = is3_viscous%beg, is3_viscous%end
                 do k = is2_viscous%beg, is2_viscous%end
-                    do j = is1_viscous%beg + 1, is1_viscous%end - 1
+                    do j = is1_viscous%beg + 3, is1_viscous%end - 3
                         $:GPU_LOOP(parallelism='[seq]')
                         do i = iv%beg, iv%end
-                            dv_ds_vf(i)%sf(j, k, l) = &
-                                1._wp/((1._wp + wa_flg)*dL(j)) &
-                                *(wa_flg*vL_vf(i)%sf(j + 1, k, l) &
-                                  + vR_vf(i)%sf(j, k, l) &
-                                  - vL_vf(i)%sf(j, k, l) &
-                                  - wa_flg*vR_vf(i)%sf(j - 1, k, l))
+                                dv_ds_vf(i)%sf(j, k, l) = (0.5_wp / dL(j)) * ( &
+                                  c1 * ( (vR_vf(i)%sf(j,   k, l) + vL_vf(i)%sf(j+1, k, l)) - (vR_vf(i)%sf(j-1, k, l) + vL_vf(i)%sf(j, k, l)) ) &
+                                + c2 * ( (vR_vf(i)%sf(j+1, k, l) + vL_vf(i)%sf(j+2, k, l)) - (vR_vf(i)%sf(j-2, k, l) + vL_vf(i)%sf(j-1, k, l)) ) &
+                                + c3 * ( (vR_vf(i)%sf(j+2, k, l) + vL_vf(i)%sf(j+3, k, l)) - (vR_vf(i)%sf(j-3, k, l) + vL_vf(i)%sf(j-2, k, l)) )   &
+                                )
                         end do
                     end do
                 end do
@@ -1247,16 +1249,15 @@ contains
 
             $:GPU_PARALLEL_LOOP(collapse=3)
             do l = is3_viscous%beg, is3_viscous%end
-                do k = is2_viscous%beg + 1, is2_viscous%end - 1
+                do k = is2_viscous%beg + 3, is2_viscous%end - 3
                     do j = is1_viscous%beg, is1_viscous%end
                         $:GPU_LOOP(parallelism='[seq]')
                         do i = iv%beg, iv%end
-                            dv_ds_vf(i)%sf(j, k, l) = &
-                                1._wp/((1._wp + wa_flg)*dL(k)) &
-                                *(wa_flg*vL_vf(i)%sf(j, k + 1, l) &
-                                  + vR_vf(i)%sf(j, k, l) &
-                                  - vL_vf(i)%sf(j, k, l) &
-                                  - wa_flg*vR_vf(i)%sf(j, k - 1, l))
+                             dv_ds_vf(i)%sf(j, k, l) = (0.5_wp / dL(k)) * ( &
+                                  c1 * ( (vR_vf(i)%sf(j, k,   l) + vL_vf(i)%sf(j, k+1, l)) - (vR_vf(i)%sf(j, k-1, l) + vL_vf(i)%sf(j, k, l)) ) &
+                                + c2 * ( (vR_vf(i)%sf(j, k+1, l) + vL_vf(i)%sf(j, k+2, l)) - (vR_vf(i)%sf(j, k-2, l) + vL_vf(i)%sf(j, k-1, l)) ) &
+                                + c3 * ( (vR_vf(i)%sf(j, k+2, l) + vL_vf(i)%sf(j, k+3, l)) - (vR_vf(i)%sf(j, k-3, l) + vL_vf(i)%sf(j, k-2, l)) )   &
+                                )
                         end do
                     end do
                 end do
@@ -1274,17 +1275,16 @@ contains
             ! spatial derivatives inside the cell.
 
             $:GPU_PARALLEL_LOOP(collapse=3)
-            do l = is3_viscous%beg + 1, is3_viscous%end - 1
+            do l = is3_viscous%beg + 3, is3_viscous%end - 3
                 do k = is2_viscous%beg, is2_viscous%end
                     do j = is1_viscous%beg, is1_viscous%end
                         $:GPU_LOOP(parallelism='[seq]')
                         do i = iv%beg, iv%end
-                            dv_ds_vf(i)%sf(j, k, l) = &
-                                1._wp/((1._wp + wa_flg)*dL(l)) &
-                                *(wa_flg*vL_vf(i)%sf(j, k, l + 1) &
-                                  + vR_vf(i)%sf(j, k, l) &
-                                  - vL_vf(i)%sf(j, k, l) &
-                                  - wa_flg*vR_vf(i)%sf(j, k, l - 1))
+                             dv_ds_vf(i)%sf(j, k, l) = (0.5_wp / dL(l)) * ( &
+                                  c1 * ( (vR_vf(i)%sf(j, k, l  ) + vL_vf(i)%sf(j, k, l+1)) - (vR_vf(i)%sf(j, k, l-1) + vL_vf(i)%sf(j, k, l)) ) &
+                                + c2 * ( (vR_vf(i)%sf(j, k, l+1) + vL_vf(i)%sf(j, k, l+2)) - (vR_vf(i)%sf(j, k, l-2) + vL_vf(i)%sf(j, k, l-1)) ) &
+                                + c3 * ( (vR_vf(i)%sf(j, k, l+2) + vL_vf(i)%sf(j, k, l+3)) - (vR_vf(i)%sf(j, k, l-3) + vL_vf(i)%sf(j, k, l-2)) )   &
+                                )
                         end do
                     end do
                 end do
