@@ -1004,11 +1004,11 @@ contains
 
                     if (chemistry) then
                         rho_K = 0._wp
-                        $:GPU_LOOP(parallelism='[seq]')
-                        do i = chemxb, chemxe
-                            rho_K = rho_K + max(0._wp, qK_cons_vf(i)%sf(j, k, l))
-                        end do
-
+                       ! $:GPU_LOOP(parallelism='[seq]')
+                       ! do i = chemxb, chemxe
+                       !     rho_K = rho_K + max(0._wp, qK_cons_vf(i)%sf(j, k, l))
+                       ! end do
+			rho_K = qK_cons_vf(1)%sf(j,k,l)
                         $:GPU_LOOP(parallelism='[seq]')
                         do i = 1, contxe
                             qK_prim_vf(i)%sf(j, k, l) = rho_K

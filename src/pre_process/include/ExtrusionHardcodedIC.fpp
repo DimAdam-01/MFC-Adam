@@ -48,7 +48,7 @@
     real(wp), allocatable :: x_coords(:), y_coords(:)
     logical :: files_loaded = .false.
     real(wp) :: domain_xstart, domain_xend, domain_ystart, domain_yend
-    character(len=*), parameter :: init_dir = "/home/MFC/FilesDirectory" ! For example /home/MFC/examples/1D_Shock/D/
+    character(len=*), parameter :: init_dir = "/Users/dimitriosadam/Desktop/MFC-Adam/examples/" ! For example /home/MFC/examples/1D_Shock/D/
     character(len=20) :: file_num_str     ! For storing the file number as a string
     character(len=20) :: zeros_part       ! For the trailing zeros part
     character(len=6), parameter :: zeros_default = "000000"  ! Default zeros (can be changed)
@@ -99,7 +99,7 @@
             ! Calculate offsets
             domain_xstart = x_coords(1)
             x_step = x_cc(1) - x_cc(0)
-            delta_x = merge(x_cc(0) - domain_xstart + x_step/2.0, &
+            delta_x = merge(x_cc(0) - domain_xstart, &
                             x_cc(index_x) - domain_xstart + x_step/2.0, num_dims == 1)
             global_offset_x = nint(abs(delta_x)/x_step)
 
