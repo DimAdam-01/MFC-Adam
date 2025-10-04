@@ -26,7 +26,7 @@ parser.add_argument("--scale", type=float, default=1, help="Scale.")
 
 args = parser.parse_args()
 
-ctfile = "h2o2.yaml"
+ctfile = "gri30.yaml"
 sol_L = ct.Solution(ctfile)
 sol_L.DPX = 0.072, 7173, "H2:2,O2:1,AR:7"
 
