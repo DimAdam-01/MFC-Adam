@@ -40,9 +40,9 @@ Ly = 0.01344
 Lz = 0.00768
 
 # Number of grid cells
-Nx = 127
-Ny = 255
-Nz = 63
+Nx = 191
+Ny = 511
+Nz = 95
 
 # Grid spacing
 dx = Lx / float(Nx)
@@ -52,7 +52,7 @@ dz = Lz / float(Nz)
 # Time advancement
 cfl = 0.4
 T = 96.0*10**(-6)
-dt = dx/cfl/10000/2
+dt = dx/cfl/10000/3
 Ntfinal = int(T / dt)
 Ntstart = 0
 Nfiles = 10
@@ -78,7 +78,7 @@ print(
             "n": Ny,
             "p": Nz,
             "dt": dt,
-            "t_step_start": 0,
+            "t_step_start": 15280,
             "t_step_stop": t_step_stop,
             "t_step_save": t_save,
             # Simulation Algorithm Parameters
