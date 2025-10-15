@@ -100,7 +100,7 @@
             domain_xstart = x_coords(1)
             x_step = x_cc(1) - x_cc(0)
             delta_x = merge(x_cc(0) - domain_xstart, &
-                            x_cc(index_x) - domain_xstart + x_step/2.0, num_dims == 1)
+                            x_cc(index_x) - domain_xstart, num_dims == 1)
             global_offset_x = nint(abs(delta_x)/x_step)
 
         case (3)  ! 3D case - determine grid structure
@@ -184,7 +184,8 @@
             jump = merge(1, 0, f >= momxe)
             q_prim_vf(f + jump)%sf(i, j, 0) = stored_values(idx, 1, f)
         end do
-        q_prim_vf(momxe)%sf(i, j, 0) = 0.0_wp
+        q_prim_vf(momxb)%sf(i, j, 0) = 0.0_wp
+         q_prim_vf(momxe)%sf(i, j, 0) = stored_values(idx,1,2)
 
     case (3)
         idx = i + 1 + global_offset_x - index_x
