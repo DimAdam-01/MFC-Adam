@@ -4,7 +4,15 @@
     real(wp) :: r, rmax, gam, umax, p0
     real(wp) :: rhoH, rhoL, pRef, pInt, h, lam, wl, amp, intH, intL, alph
     real(wp) :: factor
+    integer :: v, klo, khi, kmid
+  real(wp) :: yy0, yrel, theta, dx_front, sss, aaa
 
+
+    real(wp), parameter :: Ly_param = 0.00775735_wp                                                                                                                                     
+      real(wp), parameter :: A_param  = 0.1_wp*96.9880867_wp*10.0_wp**(-6.0_wp)
+      integer,  parameter :: Nwaves   = 6
+     real(wp), parameter :: pi_wp  = acos(-1.0_wp)
+     real(wp), parameter :: y0_ref = 0.0_wp    ! set to global y-start of the domain
     eps = 1.e-9_wp
 #:enddef
 
@@ -159,7 +167,59 @@
     case (270)
         ! This hardcoded case extrudes a 1D profile to initialize a 2D simulation domain
         @: HardcodedReadValues()
+    case (271)
+  ! Read global 1D manifold once (your macro fills x_coords, stored_values, xRows)
+  @: HardcodedReadValues()
 
+  ! --- locals (kept your names) ---
+    ! (Optional) local-bounds if you need them for other guards
+  ! integer :: il, iu, jl, ju
+  ! il = lbound(x_cc,1); iu = ubound(x_cc,1)
+  ! jl = lbound(y_cc,1); ju = ubound(y_cc,1)
+
+  ! phase using GLOBAL y-origin; y_cc(j) is a global coordinate, so this stays consistent across ranks
+  yy0  = y0_ref
+  yrel = y_cc(j) - yy0
+  theta    = 2.0_wp*pi_wp*Nwaves * (yrel / Ly_param)
+  dx_front = A_param * sin(theta)
+
+  ! sample the global 1D profile at shifted coordinate s = x - dx_front
+  sss = x_cc(i) - dx_front
+
+  ! ---- clamp or interpolate from GLOBAL arrays: x_coords / stored_values ----
+  if (sss <= x_coords(1)) then
+    do v = 1, sys_size - 1
+      q_prim_vf(v + merge(1,0, v>=momxe))%sf(i,j,0) = stored_values(1, 1, v)
+    end do
+    q_prim_vf(momxe)%sf(i,j,0) = 0.0_wp
+
+  else if (sss >= x_coords(xRows)) then
+    do v = 1, sys_size - 1
+      q_prim_vf(v + merge(1,0, v>=momxe))%sf(i,j,0) = stored_values(xRows, 1, v)
+    end do
+    q_prim_vf(momxe)%sf(i,j,0) = 0.0_wp
+
+  else
+    ! Bisection ONLY on GLOBAL x_coords: find klo,khi with x_coords(klo) <= sss < x_coords(khi)
+    klo = 1;  khi = xRows
+    do while (khi - klo > 1)
+      kmid = (klo + khi) / 2
+      if (x_coords(kmid) <= sss) then
+        klo = kmid
+      else
+        khi = kmid
+      end if
+    end do
+
+    aaa = (sss - x_coords(klo)) / (x_coords(khi) - x_coords(klo))   ! weight in [0,1)
+
+    ! interpolate ALL variables except momxe (2D out-of-plane momentum)
+    do v = 1, sys_size - 1
+      q_prim_vf(v + merge(1,0, v>=momxe))%sf(i,j,0) = (1.0_wp - aaa)*stored_values(klo, 1, v) &
+                                                    +            aaa *stored_values(khi, 1, v)
+    end do
+    q_prim_vf(momxe)%sf(i,j,0) = 0.0_wp
+  end if
     case (280)
         ! This is patch is hard-coded for test suite optimization used in the
         ! 2D_isentropicvortex case:
