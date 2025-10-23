@@ -4,8 +4,12 @@
     real(wp) :: r, rmax, gam, umax, p0
     real(wp) :: rhoH, rhoL, pRef, pInt, h, lam, wl, amp, intH, intL, alph
     real(wp) :: factor
-    integer :: v, klo, khi, kmid
+    integer :: v, klo, khi, kmid,ll
   real(wp) :: yy0, yrel, theta, dx_front, sss, aaa
+ real :: eeta,xx0,sigma, WCH3OCH3, WN2, WO2,Wmean,T0,Ru,Pres
+
+
+
 
 
     real(wp), parameter :: Ly_param = 0.00775735_wp                                                                                                                                     
@@ -14,6 +18,13 @@
      real(wp), parameter :: pi_wp  = acos(-1.0_wp)
      real(wp), parameter :: y0_ref = 0.0_wp    ! set to global y-start of the domain
     eps = 1.e-9_wp
+                     xx0 = 5.69_wp*10.0_wp**(-5.0_wp)
+                sigma = xx0/2.0_wp
+                WCH3OCH3 = 46.069
+                WN2 = 28.014
+                WO2 = 31.998
+                Ru = 8314.46
+                Pres = 40.0_wp*1.01325*10.0_wp**(5.0_wp)
 #:enddef
 
 #:def Hardcoded2D()
@@ -163,6 +174,25 @@
             q_prim_vf(contxb)%sf(i, j, 0) = 1.e-4_wp
             q_prim_vf(E_idx)%sf(i, j, 0) = 3.e-5_wp
         end if
+
+    case(269)
+
+                 eeta = 0.5_wp*(tanh((x_cc(i)+xx0)/sigma)-tanh((x_cc(i)-xx0)/sigma))
+                 Wmean = WCH3OCH3*(0.2_wp*eeta)+WN2*(0.79_wp+0.01_wp*eeta)+WO2*(0.21_wp-0.21_wp*eeta)
+                 T0 = eeta*400.0_wp+(1.0-eeta)*1525.0_wp
+                 q_prim_vf(1)%sf(i,j,k) = Pres*Wmean/Ru/T0
+                 q_prim_vf(2)%sf(i,j,k) = 0.0_wp
+                 q_prim_vf(3)%sf(i,j,k) = eeta*51.2_wp+(1.0_wp-eeta)*5.12_wp
+                 q_prim_vf(4)%sf(i,j,k) = Pres
+                 q_prim_vf(5)%sf(i,j,k) = 1.0_wp
+
+                 do ll = chemxb,chemxe
+                   q_prim_vf(ll)%sf(i,j,k) = 0.0_wp
+                  end do
+
+                  q_prim_vf(25)%sf(i,j,k) = WO2*(0.21_wp-0.21_wp*eeta)/Wmean
+                  q_prim_vf(44)%sf(i,j,k) = WN2*(0.79_wp+0.01_wp*eeta)/Wmean
+                  q_prim_vf(32)%sf(i,j,k) = WCH3OCH3*(0.2_wp*eeta)/Wmean
 
     case (270)
         ! This hardcoded case extrudes a 1D profile to initialize a 2D simulation domain

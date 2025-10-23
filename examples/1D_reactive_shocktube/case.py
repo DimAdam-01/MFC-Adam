@@ -26,12 +26,12 @@ parser.add_argument("--scale", type=float, default=1, help="Scale.")
 
 args = parser.parse_args()
 
-ctfile = "gri30.yaml"
+ctfile = "DME.yaml"
 sol_L = ct.Solution(ctfile)
-sol_L.DPX = 0.072, 7173, "H2:2,O2:1,AR:7"
+sol_L.DPX = 0.072, 7173, "H2:2,O2:1,N2:7"
 
 sol_R = ct.Solution(ctfile)
-sol_R.DPX = 0.18075, 35594, "H2:2,O2:1,AR:7"
+sol_R.DPX = 0.18075, 35594, "H2:2,O2:1,N2:7"
 
 u_l = 0
 u_r = -487.34
@@ -57,9 +57,9 @@ case = {
     "p": 0,
     "dt": float(dt),
     "t_step_start": 0,
-    "t_step_stop": NT,
-    "t_step_save": NS,
-    "t_step_print": NS,
+    "t_step_stop": 2,
+    "t_step_save": 1,
+    "t_step_print": 1,
     "parallel_io": "F" if args.mfc.get("mpi", True) else "F",
     # Simulation Algorithm Parameters
     "model_eqns": 2,
@@ -73,7 +73,7 @@ case = {
     "weno_avg": "F",
     "mapped_weno": "T",
     "mp_weno": "T",
-    "riemann_solver": 2,
+    "riemann_solver": 1,
     "wave_speeds": 1,
     "avg_state": 2,
     "bc_x%beg": -2,

@@ -985,6 +985,12 @@ contains
             call nvtxEndRange
         end if
 
+            do j =idwbuff(1)%beg, idwbuff(1)%end
+              do i = 1, sys_size
+                rhs_vf(i)%sf(j,0,0) = 0.0_wp
+              end do
+            end do
+
         if (cont_damage) call s_compute_damage_state(q_cons_qp%vf, rhs_vf)
 
         ! END: Additional pphysics and source terms

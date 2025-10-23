@@ -1022,6 +1022,7 @@ contains
         integer, intent(in) :: k, l
 
         integer :: j, i
+        real :: eeta,xx0,sigma, WCH3OCH3, WN2, WO2,Wmean,T0,Ru,Pres
 
 #ifdef MFC_SIMULATION
         if (bc_dir == 1) then !< x-direction
@@ -1042,12 +1043,38 @@ contains
             end if
         elseif (bc_dir == 2) then !< y-direction
             if (bc_loc == -1) then !< bc_y%beg
-                do i = 1, sys_size
+                xx0 = 5.69_wp*10.0_wp**(-5.0_wp)
+                sigma = xx0/2.0_wp
+                WCH3OCH3 = 46.069
+                WN2 = 28.014
+                WO2 = 31.998
+                Ru = 8314.46
+                Pres = 40.0_wp*1.01325*10.0_wp**(5.0_wp)
+
+                 eeta = 0.5_wp*(tanh((x_cc(k)+xx0)/sigma)-tanh((x_cc(k)-xx0)/sigma))
+                 Wmean = WCH3OCH3*(0.2_wp*eeta)+WN2*(0.79_wp+0.01_wp*eeta)+WO2*(0.21_wp-0.21_wp*eeta)
+                 T0 = eeta*400.0_wp+(1.0-eeta)*1525.0_wp
+                 q_prim_vf(1)%sf(k,0,0) = Pres*Wmean/Ru/T0
+                 q_prim_vf(2)%sf(k,0,0) = 0.0_wp
+                 q_prim_vf(3)%sf(k,0,0) = eeta*51.2_wp+(1.0_wp-eeta)*5.12_wp+10.0_wp*eeta*sin(2.0_wp*pi/0.00228_wp)*sin(2.0_wp*pi/10.0**(-5.0_wp)*mytime)
+                 q_prim_vf(4)%sf(k,0,0) = Pres
+                 q_prim_vf(5)%sf(k,0,0) = 1.0_wp
+
+                 do i = chemxb,chemxe
+                   q_prim_vf(i)%sf(k,0,0) = 0.0_wp
+                  end do
+
+                  q_prim_vf(25)%sf(k,0,0) = WO2*(0.21_wp-0.21_wp*eeta)/Wmean
+                  q_prim_vf(44)%sf(k,0,0) = WN2*(0.79_wp+0.01_wp*eeta)/Wmean
+                  q_prim_vf(32)%sf(k,0,0) = WCH3OCH3*(0.2_wp*eeta)/Wmean
+
+                    do i = 1,sys_size
                     do j = 1, buff_size
+                       
                         q_prim_vf(i)%sf(k, -j, l) = &
-                            bc_buffers(2, -1)%sf(k, i, l)
+                            q_prim_vf(i)%sf(k, 0, l)
                     end do
-                end do
+                    end do
             else !< bc_y%end
                 do i = 1, sys_size
                     do j = 1, buff_size

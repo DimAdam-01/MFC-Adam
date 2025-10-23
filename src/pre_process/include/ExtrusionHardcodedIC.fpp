@@ -48,17 +48,18 @@
     real(wp), allocatable :: x_coords(:), y_coords(:)
     logical :: files_loaded = .false.
     real(wp) :: domain_xstart, domain_xend, domain_ystart, domain_yend
-    character(len=*), parameter :: init_dir = "/Users/dimitriosadam/Desktop/MFC-Adam/" ! For example /home/MFC/examples/1D_Shock/D/
+    character(len=*), parameter :: init_dir =   "/Users/dimitriosadam/Desktop/2D_Triple/" ! For example /home/MFC/examples/1D_Shock/D/
     character(len=20) :: file_num_str     ! For storing the file number as a string
     character(len=20) :: zeros_part       ! For the trailing zeros part
-    character(len=6), parameter :: zeros_default = "000001"  ! Default zeros (can be changed)
+    character(len=6), parameter :: zeros_default = "000000"  ! Default zeros (can be changed)
 #:enddef
 
 #:def HardcodedReadValues()
 
     if (.not. files_loaded) then
-        max_files = merge(sys_size, sys_size - 1, num_dims == 1)
-        do f = 1, max_files
+      !  max_files = merge(sys_size, sys_size - 1, num_dims == 1)
+       max_files = sys_size
+       do f = 1, max_files
             write (file_num_str, '(I0)') f
             fileNames(f) = trim(init_dir)//"prim."//trim(file_num_str)//".00."//zeros_default//".dat"
         end do
@@ -66,42 +67,49 @@
         ! Common file reading setup
         open (newunit=unit2, file=trim(fileNames(1)), status='old', action='read', iostat=ios2)
         if (ios2 /= 0) call s_mpi_abort("Error opening file: "//trim(fileNames(1)))
-
         select case (num_dims)
         case (1, 2)  ! 1D and 2D cases are similar
             ! Count lines
-            line_count = 0
-            do
-                read (unit2, *, iostat=ios2) dummy_x, dummy_y
-                if (ios2 /= 0) exit
-                line_count = line_count + 1
-            end do
-            close (unit2)
+            xRows = 501
+            yRows = 1001
+            nRows = xRows*yRows
+           ! line_count = 0
+           ! do
+           !     read (unit2, *, iostat=ios2) dummy_x, dummy_y
+           !     if (ios2 /= 0) exit
+           !     line_count = line_count + 1
+           ! end do
+           ! close (unit2)
 
-            xRows = line_count
-            yRows = 1
-            index_x = 0
-            if (num_dims == 2) index_x = i
-            @:ALLOCATE (x_coords(xRows), stored_values(xRows, 1, sys_size))
+          !  xRows = line_count
+          !  yRows = 1
+          !  index_x = 0
+          !  if (num_dims == 2) index_x = i
+            @:ALLOCATE (x_coords(nRows),y_coords(nRows), stored_values(xRows, yRows, sys_size))
 
             ! Read data from all files
             do f = 1, max_files
-                open (newunit=unit, file=trim(fileNames(f)), status='old', action='read', iostat=ios)
+              
+              open (newunit=unit, file=trim(fileNames(f)), status='old', action='read', iostat=ios)
                 if (ios /= 0) call s_mpi_abort("Error opening file: "//trim(fileNames(f)))
-
-                do iter = 1, xRows
-                    read (unit, *, iostat=ios) x_coords(iter), stored_values(iter, 1, f)
+                iter = 0
+               
+               do iix = 1, xRows
+                    do iiy = 1,yRows
+                    iter = iter+1
+                    read (unit, *, iostat=ios) x_coords(iter), y_coords(iter),stored_values(iix,iiy, f)
                     if (ios /= 0) call s_mpi_abort("Error reading file: "//trim(fileNames(f)))
+               
+               end do
                 end do
                 close (unit)
             end do
-
             ! Calculate offsets
             domain_xstart = x_coords(1)
-            x_step = x_cc(1) - x_cc(0)
-            delta_x = merge(x_cc(0) - domain_xstart, &
-                            x_cc(index_x) - domain_xstart, num_dims == 1)
-            global_offset_x = nint(abs(delta_x)/x_step)
+         !   x_step = x_cc(1) - x_cc(0)
+         !   delta_x = merge(x_cc(0) - domain_xstart, &
+         !                   x_cc(index_x) - domain_xstart, num_dims == 1)
+         !   global_offset_x = nint(abs(delta_x)/x_step)
 
         case (3)  ! 3D case - determine grid structure
             ! Find yRows by counting rows with same x
@@ -179,12 +187,10 @@
         end do
 
     case (2)
-        idx = i + 1 + global_offset_x - index_x
-        do f = 1, sys_size - 1
-            jump = merge(1, 0, f >= momxe)
-            q_prim_vf(f + jump)%sf(i, j, 0) = stored_values(i+1, 1, f)
+       ! idx = i + 1 + global_offset_x - index_x
+        do f = 1, sys_size 
+            q_prim_vf(f)%sf(i, j, 0) = stored_values(i+1, j+1, f)
         end do
-        q_prim_vf(momxe)%sf(i, j, 0) = 0.0_wp
 
     case (3)
         idx = i + 1 + global_offset_x - index_x

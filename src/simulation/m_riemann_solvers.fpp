@@ -375,6 +375,7 @@ contains
                             end do
 
                             vel_L_rms = 0._wp; vel_R_rms = 0._wp
+                            
 
                             $:GPU_LOOP(parallelism='[seq]')
                             do i = 1, num_vels
