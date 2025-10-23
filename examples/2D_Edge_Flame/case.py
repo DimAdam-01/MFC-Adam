@@ -25,8 +25,9 @@ Nx   = 500
 Ny   = 1000
 dx   = Lx / Nx
 dy   = Ly / Ny
-dt   = 3e-8
-Tend = 0.9e-4
+
+dt   = 0.2e-8
+Tend = 5.18e-6
 
 NT         = int(Tend / dt)
 SAVE_COUNT = 1
@@ -48,9 +49,9 @@ data = {
     "cyl_coord": "F",
     "dt": dt,
     "t_step_start": 0,
-    "t_step_stop": 10000,
-    "t_step_save": 300,
-    "t_step_print": 1,
+    "t_step_stop": int(NT),
+    "t_step_save": int(NT/20),
+    "t_step_print": 100,
     # Simulation Algorithm
     "model_eqns": 2,
     "alt_soundspeed": "F",
@@ -66,15 +67,15 @@ data = {
     "weno_Re_flux": "F",
     "riemann_solver": 2,
     "wave_speeds": 1,
-    "bc_x%beg": -11,
-    "bc_x%end": -12,
-    "bc_y%beg": -11,
-    "bc_y%end": -2,
+    "bc_x%beg": -8,
+    "bc_x%end": -8,
+    "bc_y%beg": -8,
+    "bc_y%end": -8,
     "num_patches": 1,
     "num_fluids": 1,
-    "viscous": "F",
+    "viscous": "T",
     'chemistry'                    : 'T' if not args.chemistry else 'T',
-    'chem_params%diffusion'        : 'F',
+    'chem_params%diffusion'        : 'T',
     'chem_params%reactions'        : 'T',
     # Database Structure Parameters
     "format": 1,
@@ -85,7 +86,7 @@ data = {
     # Fluid Parameters (Heavy Gas)
     "fluid_pp(1)%gamma": 1.0e00 / (1.4e00 - 1.0e00),
     "fluid_pp(1)%pi_inf": 0.0e00,
-    #"fluid_pp(1)%Re(1)": 1 / 0.0219,
+   "fluid_pp(1)%Re(1)":10000,
     # Fluid Parameters (Light Gas)
 
     # Body Forces
