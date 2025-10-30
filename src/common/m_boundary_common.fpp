@@ -79,11 +79,12 @@ contains
     !>  The purpose of this procedure is to populate the buffers
     !!      of the primitive variables, depending on the selected
     !!      boundary conditions.
-    impure subroutine s_populate_variables_buffers(bc_type, q_prim_vf, pb_in, mv_in)
+    impure subroutine s_populate_variables_buffers(bc_type, q_prim_vf, pb_in, mv_in,mytime)
 
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
         real(wp), optional, dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:, 1:), intent(inout) :: pb_in, mv_in
         type(integer_field), dimension(1:num_dims, -1:1), intent(in) :: bc_type
+        real(wp), optional, intent(in) :: mytime
 
         integer :: k, l
 
@@ -154,7 +155,7 @@ contains
             call s_mpi_sendrecv_variables_buffers(q_prim_vf, 2, -1, sys_size, pb_in, mv_in)
         else
             $:GPU_PARALLEL_LOOP(collapse=2)
-            do l = 0, p
+            do l = 0 ,p
                 do k = -buff_size, m + buff_size
                     select case (int(bc_type(2, -1)%sf(k, 0, l)))
                     case (BC_CHAR_SUP_OUTFLOW:BC_GHOST_EXTRAP)
@@ -172,15 +173,16 @@ contains
                     case (BC_DIRICHLET)
                         call s_dirichlet(q_prim_vf, 2, -1, k, l)
                     end select
-
+                        
                     if (qbmm .and. (.not. polytropic) .and. &
                         (bc_type(2, -1)%sf(k, 0, l) <= BC_GHOST_EXTRAP) .and. &
                         (bc_type(2, -1)%sf(k, 0, l) /= BC_AXIS)) then
                         call s_qbmm_extrapolation(2, -1, k, l, pb_in, mv_in)
                     end if
                 end do
-            end do
-        end if
+                end do  
+  
+ end if
 
         if (bc_y%end >= 0) then
             call s_mpi_sendrecv_variables_buffers(q_prim_vf, 2, 1, sys_size, pb_in, mv_in)
@@ -273,7 +275,6 @@ contains
             end do
         end if
         ! END: Population of Buffers in z-direction
-
     end subroutine s_populate_variables_buffers
 
     pure subroutine s_ghost_cell_extrapolation(q_prim_vf, bc_dir, bc_loc, k, l)
@@ -1014,7 +1015,7 @@ contains
 
     end subroutine s_no_slip_wall
 
-    pure subroutine s_dirichlet(q_prim_vf, bc_dir, bc_loc, k, l)
+     subroutine s_dirichlet(q_prim_vf, bc_dir, bc_loc, k, l)
         $:GPU_ROUTINE(function_name='s_dirichlet',parallelism='[seq]', &
             & cray_inline=True)
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
@@ -1022,7 +1023,7 @@ contains
         integer, intent(in) :: k, l
 
         integer :: j, i
-        real :: eeta,xx0,sigma, WCH3OCH3, WN2, WO2,Wmean,T0,Ru,Pres
+        real(wp) :: eeta,xx0,sigma, WCH3OCH3, WN2, WO2,Wmean,T0,Ru,Pres
 
 #ifdef MFC_SIMULATION
         if (bc_dir == 1) then !< x-direction
@@ -1054,19 +1055,18 @@ contains
                  eeta = 0.5_wp*(tanh((x_cc(k)+xx0)/sigma)-tanh((x_cc(k)-xx0)/sigma))
                  Wmean = WCH3OCH3*(0.2_wp*eeta)+WN2*(0.79_wp+0.01_wp*eeta)+WO2*(0.21_wp-0.21_wp*eeta)
                  T0 = eeta*400.0_wp+(1.0-eeta)*1525.0_wp
-                 q_prim_vf(1)%sf(k,0,0) = Pres*Wmean/Ru/T0
-                 q_prim_vf(2)%sf(k,0,0) = 0.0_wp
-                 q_prim_vf(3)%sf(k,0,0) = eeta*51.2_wp+(1.0_wp-eeta)*5.12_wp+10.0_wp*eeta*sin(2.0_wp*pi/0.00228_wp)*sin(2.0_wp*pi/10.0**(-5.0_wp)*mytime)
-                 q_prim_vf(4)%sf(k,0,0) = Pres
-                 q_prim_vf(5)%sf(k,0,0) = 1.0_wp
-
+                 q_prim_vf(1)%sf(k,0,l) = Pres*Wmean/Ru/T0
+                 q_prim_vf(2)%sf(k,0,l) = 0.0_wp
+                 q_prim_vf(3)%sf(k,0,l) = eeta*51.2_wp+(1.0_wp-eeta)*5.12_wp+10.0_wp*eeta*sin(2.0_wp*pi/0.00228_wp*x_cc(k))*sin(2.0_wp*pi/10.0_wp**(-5.0_wp)*mytime)
+                 q_prim_vf(4)%sf(k,0,l) = Pres
+                 q_prim_vf(5)%sf(k,0,l) = 1.0_wp
                  do i = chemxb,chemxe
-                   q_prim_vf(i)%sf(k,0,0) = 0.0_wp
+                   q_prim_vf(i)%sf(k,0,l) = 0.0_wp
                   end do
 
-                  q_prim_vf(25)%sf(k,0,0) = WO2*(0.21_wp-0.21_wp*eeta)/Wmean
-                  q_prim_vf(44)%sf(k,0,0) = WN2*(0.79_wp+0.01_wp*eeta)/Wmean
-                  q_prim_vf(32)%sf(k,0,0) = WCH3OCH3*(0.2_wp*eeta)/Wmean
+                  q_prim_vf(25)%sf(k,0,l) = WO2*(0.21_wp-0.21_wp*eeta)/Wmean
+                  q_prim_vf(44)%sf(k,0,l) = WN2*(0.79_wp+0.01_wp*eeta)/Wmean
+                  q_prim_vf(32)%sf(k,0,l) = WCH3OCH3*(0.2_wp*eeta)/Wmean
 
                     do i = 1,sys_size
                     do j = 1, buff_size

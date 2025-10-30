@@ -841,7 +841,6 @@ contains
         real(wp) :: G_K
 
         real(wp) :: pres
-
         integer :: i, j, k, l !< Generic loop iterators
 
         real(wp) :: T
@@ -1050,7 +1049,7 @@ contains
 
                         T = q_T_sf%sf(j, k, l)
                     end if
-
+                  
                     if (mhd) then
                         if (n == 0) then
                             pres_mag = 0.5_wp*(Bx0**2 + qK_cons_vf(B_idx%beg)%sf(j, k, l)**2 + qK_cons_vf(B_idx%beg + 1)%sf(j, k, l)**2)

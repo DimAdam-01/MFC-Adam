@@ -21,12 +21,12 @@ sol_L.TPX =  300,  101325, 'H:1'
 
 Lx    = 0.00228
 Ly    = 0.00228
-Nx   = 300
-Ny   = 100
+Nx   = 511
+Ny   = 511
 dx   = Lx / Nx
 dy   = Ly / Ny
-dt   = 1e-9
-Tend = 0.9e-4
+dt   = 0.25e-9
+Tend = 5e-5
 
 NT         = int(Tend / dt)
 SAVE_COUNT = 1
@@ -48,9 +48,9 @@ data = {
     "cyl_coord": "F",
     "dt": dt,
     "t_step_start": 0,
-    "t_step_stop": 1000,
-    "t_step_save": 50,
-    "t_step_print": 50,
+    "t_step_stop": int(NT),
+    "t_step_save": int(NT/15),
+    "t_step_print": 100,
     # Simulation Algorithm
     "model_eqns": 2,
     "alt_soundspeed": "F",
@@ -58,12 +58,12 @@ data = {
     "mpp_lim": "F",
     "time_stepper": 3,
     "avg_state": 1,
-    "weno_order": 5,
+    "weno_order": 7,
     "weno_eps": 1e-16,
     "mapped_weno": "T",
     "null_weights": "F",
-    "mp_weno": "T",
-    "weno_Re_flux": "F",
+    "mp_weno": "F",
+    "weno_Re_flux": "T",
     "riemann_solver": 2,
     "wave_speeds": 1,
     "bc_x%beg": -8,

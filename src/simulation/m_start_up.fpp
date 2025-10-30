@@ -1143,7 +1143,7 @@ contains
 #endif
 
         mytime = mytime + dt
-
+        $:GPU_UPDATE(device='[mytime]')
         ! Total-variation-diminishing (TVD) Runge-Kutta (RK) time-steppers
         if (time_stepper == 1) then
             call s_1st_order_tvd_rk(t_step, time_avg)

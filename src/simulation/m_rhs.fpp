@@ -636,9 +636,9 @@ contains
         integer, intent(in) :: t_step
         real(wp), intent(inout) :: time_avg
         integer, intent(in) :: stage
-
+ real(wp) :: eeta,xx0,sigma, WCH3OCH3, WN2, WO2,Wmean,T0,Ru,Pres
         real(wp) :: t_start, t_finish
-        integer :: i, j, k, l, id !< Generic loop iterators
+        integer :: i, j, k, l,ll, id !< Generic loop iterators
 
         call nvtxStartRange("COMPUTE-RHS")
 
@@ -696,6 +696,32 @@ contains
             call nvtxStartRange("RHS-COMMUNICATION")
             call s_populate_variables_buffers(bc_type, q_prim_qp%vf, pb_in, mv_in)
             call nvtxEndRange
+
+            sigma = xx0/2.0_wp
+                WCH3OCH3 = 46.069
+                WN2 = 28.014
+                WO2 = 31.998
+                Ru = 8314.46
+                Pres = 40.0_wp*1.01325*10.0_wp**(5.0_wp)
+                do ll = 0, m
+   eeta = 0.5_wp*(tanh((x_cc(ll)+xx0)/sigma)-tanh((x_cc(ll)-xx0)/sigma))
+                 Wmean = WCH3OCH3*(0.2_wp*eeta)+WN2*(0.79_wp+0.01_wp*eeta)+WO2*(0.21_wp-0.21_wp*eeta)
+                 T0 = eeta*400.0_wp+(1.0-eeta)*1525.0_wp
+
+ q_prim_qp%vf(1)%sf(ll,0,0) = Pres*Wmean/Ru/T0
+                 q_prim_qp%vf(2)%sf(ll,0,0) = 0.0_wp
+                 q_prim_qp%vf(3)%sf(ll,0,0) = eeta*51.2_wp+(1.0_wp-eeta)*5.12_wp+10.0_wp*eeta*sin(2.0_wp*pi*x_cc(ll)/0.00228_wp)*sin(2.0_wp*pi/10.0**(-5.0_wp)*mytime)
+                 q_prim_qp%vf(4)%sf(ll,0,0) = Pres
+                 q_prim_qp%vf(5)%sf(ll,0,0) = 1.0_wp
+
+                 do i = chemxb,chemxe
+                   q_prim_qp%vf(i)%sf(ll,0,0) = 0.0_wp
+                  end do
+
+                  q_prim_qp%vf(25)%sf(ll,0,0) = WO2*(0.21_wp-0.21_wp*eeta)/Wmean
+                  q_prim_qp%vf(44)%sf(ll,0,0) = WN2*(0.79_wp+0.01_wp*eeta)/Wmean
+                  q_prim_qp%vf(32)%sf(ll,0,0) = WCH3OCH3*(0.2_wp*eeta)/Wmean
+               end do
         end if
 
         call nvtxStartRange("RHS-ELASTIC")
@@ -1040,7 +1066,7 @@ contains
         if (alt_soundspeed) then
             $:GPU_PARALLEL_LOOP(collapse=3)
             do q_loop = 0, p
-                do l_loop = 0, n
+                do l_loop = 1, n
                     do k_loop = 0, m
                         blkmod1(k_loop, l_loop, q_loop) = ((gammas(1) + 1._wp)*q_prim_vf%vf(E_idx)%sf(k_loop, l_loop, q_loop) + &
                                                            pi_infs(1))/gammas(1)
@@ -1075,7 +1101,7 @@ contains
             $:GPU_PARALLEL_LOOP(collapse=4,private='[inv_ds,flux_face1,flux_face2]')
             do j = 1, sys_size
                 do q_loop = 0, p
-                    do l_loop = 0, n
+                    do l_loop = 1, n
                         do k_loop = 0, m
                             inv_ds = 1._wp/dx(k_loop)
                             flux_face1 = flux_n(1)%vf(j)%sf(k_loop - 1, l_loop, q_loop)
@@ -1120,7 +1146,7 @@ contains
             $:GPU_PARALLEL_LOOP(collapse=4,private='[inv_ds,flux_face1,flux_face2]')
             do j = 1, sys_size
                 do l = 0, p
-                    do k = 0, n
+                    do k = 1, n
                         do q = 0, m
                             inv_ds = 1._wp/dy(k)
                             flux_face1 = flux_n(2)%vf(j)%sf(q, k - 1, l)
@@ -1135,7 +1161,7 @@ contains
                 $:GPU_PARALLEL_LOOP(collapse=4,private='[inv_ds,advected_qty_val, &
                     & pressure_val,flux_face1,flux_face2]')
                 do l = 0, p
-                    do k = 0, n
+                    do k = 1, n
                         do q = 0, m
                             do i_fluid_loop = 1, num_fluids
                                 inv_ds = 1._wp/dy(k)
@@ -1161,7 +1187,7 @@ contains
                 $:GPU_PARALLEL_LOOP(collapse=4,private='[flux_face1,flux_face2]')
                 do j = 1, sys_size
                     do l = 0, p
-                        do k = 0, n
+                        do k = 1, n
                             do q = 0, m
                                 flux_face1 = flux_gsrc_n(2)%vf(j)%sf(q, k - 1, l)
                                 flux_face2 = flux_gsrc_n(2)%vf(j)%sf(q, k, l)
@@ -1188,7 +1214,7 @@ contains
                     & flux_face1,flux_face2]')
                 do j = 1, sys_size
                     do k = 0, p
-                        do q = 0, n
+                        do q = 1, n
                             do l = 0, m
                                 inv_ds = 1._wp/(dz(k)*y_cc(q))
                                 velocity_val = q_prim_vf%vf(contxe + idir)%sf(l, q, k)
@@ -1203,7 +1229,7 @@ contains
                 $:GPU_PARALLEL_LOOP(collapse=4,private='[flux_face1,flux_face2]')
                 do j = 1, sys_size
                     do k = 0, p
-                        do q = 0, n
+                        do q = 1, n
                             do l = 0, m
                                 flux_face1 = flux_gsrc_n(3)%vf(j)%sf(l, q, k - 1)
                                 flux_face2 = flux_gsrc_n(3)%vf(j)%sf(l, q, k)
@@ -1217,7 +1243,7 @@ contains
                 $:GPU_PARALLEL_LOOP(collapse=4,private='[inv_ds,flux_face1,flux_face2]')
                 do j = 1, sys_size
                     do k = 0, p
-                        do q = 0, n
+                        do q = 1, n
                             do l = 0, m
                                 inv_ds = 1._wp/dz(k)
                                 flux_face1 = flux_n(3)%vf(j)%sf(l, q, k - 1)
@@ -1233,7 +1259,7 @@ contains
                 $:GPU_PARALLEL_LOOP(collapse=4,private='[inv_ds,advected_qty_val, &
                     & pressure_val,flux_face1,flux_face2]')
                 do k = 0, p
-                    do q = 0, n
+                    do q = 1, n
                         do l = 0, m
                             do i_fluid_loop = 1, num_fluids
                                 inv_ds = 1._wp/dz(k)
@@ -1279,7 +1305,7 @@ contains
                         & local_term_coeff,local_flux1,local_flux2]')
                     do j_adv = advxb, advxe
                         do q_idx = 0, p ! z_extent
-                            do l_idx = 0, n ! y_extent
+                            do l_idx = 1, n ! y_extent
                                 do k_idx = 0, m ! x_extent
                                     local_inv_ds = 1._wp/dx(k_idx)
                                     local_term_coeff = q_prim_vf_arg%vf(contxe + current_idir)%sf(k_idx, l_idx, q_idx)
@@ -1297,7 +1323,7 @@ contains
                             $:GPU_PARALLEL_LOOP(collapse=3, private='[local_inv_ds, &
                                 & local_q_cons_val, local_k_term_val, &
                                 & local_term_coeff, local_flux1, local_flux2]')
-                            do q_idx = 0, p; do l_idx = 0, n; do k_idx = 0, m
+                            do q_idx = 0, p; do l_idx = 1, n; do k_idx = 0, m
                                         local_inv_ds = 1._wp/dx(k_idx)
                                         local_q_cons_val = q_cons_vf_arg%vf(advxe)%sf(k_idx, l_idx, q_idx)
                                         local_k_term_val = Kterm_arg(k_idx, l_idx, q_idx) ! Access is safe due to outer alt_soundspeed check
@@ -1312,7 +1338,7 @@ contains
                                 & local_q_cons_val, local_k_term_val, &
                                 & local_term_coeff, local_flux1, &
                                 & local_flux2]')
-                            do q_idx = 0, p; do l_idx = 0, n; do k_idx = 0, m
+                            do q_idx = 0, p; do l_idx = 1, n; do k_idx = 0, m
                                         local_inv_ds = 1._wp/dx(k_idx)
                                         local_q_cons_val = q_cons_vf_arg%vf(advxb)%sf(k_idx, l_idx, q_idx)
                                         local_k_term_val = Kterm_arg(k_idx, l_idx, q_idx) ! Access is safe
@@ -1327,7 +1353,7 @@ contains
                         $:GPU_PARALLEL_LOOP(collapse=4,private='[local_inv_ds, &
                             & local_term_coeff,local_flux1,local_flux2]')
                         do j_adv = advxb, advxe
-                            do q_idx = 0, p; do l_idx = 0, n; do k_idx = 0, m
+                            do q_idx = 0, p; do l_idx = 1, n; do k_idx = 0, m
                                         local_inv_ds = 1._wp/dx(k_idx)
                                         local_term_coeff = q_cons_vf_arg%vf(j_adv)%sf(k_idx, l_idx, q_idx)
                                         local_flux1 = flux_src_n_vf_arg%vf(j_adv)%sf(k_idx, l_idx, q_idx)
@@ -1346,7 +1372,7 @@ contains
                         & local_term_coeff,local_flux1,local_flux2]')
                     do j_adv = advxb, advxe
                         do l_idx = 0, p ! z_extent
-                            do k_idx = 0, n ! y_extent
+                            do k_idx = 1, n ! y_extent
                                 do q_idx = 0, m ! x_extent
                                     local_inv_ds = 1._wp/dy(k_idx)
                                     local_term_coeff = q_prim_vf_arg%vf(contxe + current_idir)%sf(q_idx, k_idx, l_idx)
@@ -1365,7 +1391,7 @@ contains
                                 & local_q_cons_val, local_k_term_val, &
                                 & local_term_coeff, local_flux1, &
                                 & local_flux2]')
-                            do l_idx = 0, p; do k_idx = 0, n; do q_idx = 0, m
+                            do l_idx = 0, p; do k_idx = 1, n; do q_idx = 0, m
                                         local_inv_ds = 1._wp/dy(k_idx)
                                         local_q_cons_val = q_cons_vf_arg%vf(advxe)%sf(q_idx, k_idx, l_idx)
                                         local_k_term_val = Kterm_arg(q_idx, k_idx, l_idx) ! Access is safe
@@ -1384,7 +1410,7 @@ contains
                                 & local_q_cons_val, local_k_term_val, &
                                 & local_term_coeff, local_flux1, &
                                 & local_flux2]')
-                            do l_idx = 0, p; do k_idx = 0, n; do q_idx = 0, m
+                            do l_idx = 0, p; do k_idx = 1, n; do q_idx = 0, m
                                         local_inv_ds = 1._wp/dy(k_idx)
                                         local_q_cons_val = q_cons_vf_arg%vf(advxb)%sf(q_idx, k_idx, l_idx)
                                         local_k_term_val = Kterm_arg(q_idx, k_idx, l_idx) ! Access is safe
@@ -1403,7 +1429,7 @@ contains
                         $:GPU_PARALLEL_LOOP(collapse=4,private='[local_inv_ds, &
                             & local_term_coeff,local_flux1,local_flux2]')
                         do j_adv = advxb, advxe
-                            do l_idx = 0, p; do k_idx = 0, n; do q_idx = 0, m
+                            do l_idx = 0, p; do k_idx = 1, n; do q_idx = 0, m
                                         local_inv_ds = 1._wp/dy(k_idx)
                                         local_term_coeff = q_cons_vf_arg%vf(j_adv)%sf(q_idx, k_idx, l_idx)
                                         local_flux1 = flux_src_n_vf_arg%vf(j_adv)%sf(q_idx, k_idx, l_idx)
@@ -1427,7 +1453,7 @@ contains
                         & local_term_coeff,local_flux1,local_flux2]')
                     do j_adv = advxb, advxe
                         do k_idx = 0, p ! z_extent
-                            do q_idx = 0, n ! y_extent
+                            do q_idx = 1, n ! y_extent
                                 do l_idx = 0, m ! x_extent
                                     local_inv_ds = 1._wp/dz(k_idx)
                                     local_term_coeff = q_prim_vf_arg%vf(contxe + current_idir)%sf(l_idx, q_idx, k_idx)
@@ -1446,7 +1472,7 @@ contains
                                 & local_q_cons_val, local_k_term_val, &
                                 & local_term_coeff, local_flux1, &
                                 & local_flux2]')
-                            do k_idx = 0, p; do q_idx = 0, n; do l_idx = 0, m
+                            do k_idx = 0, p; do q_idx = 1, n; do l_idx = 0, m
                                         local_inv_ds = 1._wp/dz(k_idx)
                                         local_q_cons_val = q_cons_vf_arg%vf(advxe)%sf(l_idx, q_idx, k_idx)
                                         local_k_term_val = Kterm_arg(l_idx, q_idx, k_idx) ! Access is safe
@@ -1461,7 +1487,7 @@ contains
                                 & local_q_cons_val, local_k_term_val, &
                                 & local_term_coeff, local_flux1, &
                                 & local_flux2]')
-                            do k_idx = 0, p; do q_idx = 0, n; do l_idx = 0, m
+                            do k_idx = 0, p; do q_idx = 1, n; do l_idx = 0, m
                                         local_inv_ds = 1._wp/dz(k_idx)
                                         local_q_cons_val = q_cons_vf_arg%vf(advxb)%sf(l_idx, q_idx, k_idx)
                                         local_k_term_val = Kterm_arg(l_idx, q_idx, k_idx) ! Access is safe
@@ -1476,7 +1502,7 @@ contains
                         $:GPU_PARALLEL_LOOP(collapse=4,private='[local_inv_ds, &
                             & local_term_coeff,local_flux1,local_flux2]')
                         do j_adv = advxb, advxe
-                            do k_idx = 0, p; do q_idx = 0, n; do l_idx = 0, m
+                            do k_idx = 0, p; do q_idx = 1, n; do l_idx = 0, m
                                         local_inv_ds = 1._wp/dz(k_idx)
                                         local_term_coeff = q_cons_vf_arg%vf(j_adv)%sf(l_idx, q_idx, k_idx)
                                         local_flux1 = flux_src_n_vf_arg%vf(j_adv)%sf(l_idx, q_idx, k_idx)
@@ -1523,7 +1549,7 @@ contains
             if ((surface_tension .or. viscous) .or. chem_params%diffusion) then
                 $:GPU_PARALLEL_LOOP(collapse=3)
                 do l = 0, p
-                    do k = 0, n
+                    do k = 1, n
                         do j = 0, m
                             if (surface_tension .or. viscous) then
                                 $:GPU_LOOP(parallelism='[seq]')
@@ -1561,7 +1587,7 @@ contains
             if (surface_tension) then
                 $:GPU_PARALLEL_LOOP(collapse=3)
                 do l = 0, p
-                    do k = 0, n
+                    do k = 1, n
                         do j = 0, m
                             rhs_vf(c_idx)%sf(j, k, l) = &
                                 rhs_vf(c_idx)%sf(j, k, l) + 1._wp/dy(k)* &
@@ -1626,7 +1652,7 @@ contains
                 if ((surface_tension .or. viscous) .or. chem_params%diffusion) then
                     $:GPU_PARALLEL_LOOP(collapse=3)
                     do l = 0, p
-                        do k = 0, n
+                        do k = 1, n
                             do j = 0, m
                                 if (surface_tension .or. viscous) then
                                     $:GPU_LOOP(parallelism='[seq]')
@@ -1732,7 +1758,7 @@ contains
             if ((surface_tension .or. viscous) .or. chem_params%diffusion) then
                 $:GPU_PARALLEL_LOOP(collapse=3)
                 do l = 0, p
-                    do k = 0, n
+                    do k = 1, n
                         do j = 0, m
                             if (surface_tension .or. viscous) then
                                 $:GPU_LOOP(parallelism='[seq]')
@@ -1767,7 +1793,7 @@ contains
             if (grid_geometry == 3) then
                 $:GPU_PARALLEL_LOOP(collapse=3)
                 do l = 0, p
-                    do k = 0, n
+                    do k = 1, n
                         do j = 0, m
                             rhs_vf(momxb + 1)%sf(j, k, l) = &
                                 rhs_vf(momxb + 1)%sf(j, k, l) + 5.e-1_wp* &

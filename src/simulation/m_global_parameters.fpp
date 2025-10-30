@@ -520,6 +520,7 @@ module m_global_parameters
     real(wp) :: mytime       !< Current simulation time
     real(wp) :: finaltime    !< Final simulation time
 
+     $:GPU_DECLARE(create='[mytime, finaltime]')
     logical :: rdma_mpi
 
     type(pres_field), allocatable, dimension(:) :: pb_ts
