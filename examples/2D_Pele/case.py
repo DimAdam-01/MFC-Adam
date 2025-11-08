@@ -21,12 +21,12 @@ sol_L.TPX =  300,  101325, 'H:1'
 
 Lx    = 0.00228
 Ly    = 0.00228
-Nx   = 511
-Ny   = 511
+Nx   = 1023
+Ny   = 1023
 dx   = Lx / Nx
 dy   = Ly / Ny
-dt   = 0.25e-9
-Tend = 5e-5
+dt   = 0.125e-9
+Tend = 6e-5
 
 NT         = int(Tend / dt)
 SAVE_COUNT = 1
@@ -47,7 +47,7 @@ data = {
     "p": 0,
     "cyl_coord": "F",
     "dt": dt,
-    "t_step_start": 0,
+    "t_step_start": 400000,
     "t_step_stop": int(NT),
     "t_step_save": int(NT/15),
     "t_step_print": 100,
