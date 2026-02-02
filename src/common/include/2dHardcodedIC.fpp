@@ -8,7 +8,7 @@
     real(wp) :: sigma, gauss1, gauss2
     ! # 208
     real(wp) :: ei, d, fsm, alpha_air, alpha_sf6
-
+    real(wp) :: y_loc, jet_vel
     eps = 1.e-9_wp
 #:enddef
 
@@ -233,7 +233,31 @@
             q_prim_vf(momxb + 0)%sf(i, j, 0) = 112.99092883944267*(1 - (0.1/0.3))*y_cc(j)*exp(0.5*(1 - sqrt(x_cc(i)**2 + y_cc(j)**2)))
             q_prim_vf(momxb + 1)%sf(i, j, 0) = 112.99092883944267*((0.1/0.3))*x_cc(i)*exp(0.5*(1 - sqrt(x_cc(i)**2 + y_cc(j)**2)))
         end if
+    case (283) ! Slabbb
 
+    y_loc   = 0.002_wp    ! Interface location (meters)
+            sigma   = 0.0005_wp   ! Width of the smoothing region
+            jet_vel = -0.02_wp    ! Target velocity (m/s)
+
+            ! --- 2. Calculate Tanh Factor ---
+            ! If y > 0.002 (Top), factor -> 1.0 (Full Jet)
+            ! If y < 0.002 (Bottom), factor -> 0.0 (Stagnant)
+            factor = 0.5_wp * (1.0_wp + tanh((y_cc(j) - y_loc) / sigma))
+
+            ! --- 3. Assign Values ---
+
+            ! Pressure (Constant 1 atm)
+            q_prim_vf(E_idx)%sf(i, j, 0) = 101325.0_wp
+
+            ! Density (Constant approx value)
+            q_prim_vf(contxb + 0)%sf(i, j, 0) = 0.914_wp
+
+            ! X-Velocity (Zero everywhere)
+            q_prim_vf(momxb + 0)%sf(i, j, 0) = 0.0_wp
+
+            ! Y-Velocity (Smoothed Profile)
+            ! V_y = -0.02 * factor
+            q_prim_vf(momxb + 1)%sf(i, j, 0) = jet_vel * factor 
     case default
         if (proc_rank == 0) then
             call s_int_to_str(patch_id, iStr)
