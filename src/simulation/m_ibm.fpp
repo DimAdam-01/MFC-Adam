@@ -181,6 +181,8 @@ contains
         real(wp) :: pres_IP
         real(wp), dimension(3) :: vel_IP, vel_norm_IP
         real(wp) :: c_IP
+        real(wp) :: T_IP
+        real(wp), dimension(num_species) :: Ys_IP
         #:if not MFC_CASE_OPTIMIZATION and USING_AMD
             real(wp), dimension(3) :: Gs
             real(wp), dimension(3) :: alpha_rho_IP, alpha_IP
@@ -264,9 +266,9 @@ contains
                     call s_interpolate_image_point(q_prim_vf, gp, &
                                                    alpha_rho_IP, alpha_IP, pres_IP, vel_IP, c_IP, &
                                                    r_IP, v_IP, pb_IP, mv_IP, nmom_IP, pb_in, mv_in, presb_IP, massv_IP)
-                else
+                else 
                     call s_interpolate_image_point(q_prim_vf, gp, &
-                                                   alpha_rho_IP, alpha_IP, pres_IP, vel_IP, c_IP)
+                                                   alpha_rho_IP, alpha_IP, pres_IP, vel_IP, c_IP, T_IP=T_IP, Ys_IP=Ys_IP)
                 end if
 
                 dyn_pres = 0._wp
@@ -852,7 +854,7 @@ contains
     !! at the cell centers in order to estimate the state at the image point
     subroutine s_interpolate_image_point(q_prim_vf, gp, alpha_rho_IP, alpha_IP, &
                                          pres_IP, vel_IP, c_IP, r_IP, v_IP, pb_IP, &
-                                         mv_IP, nmom_IP, pb_in, mv_in, presb_IP, massv_IP)
+                                         mv_IP, nmom_IP, pb_in, mv_in, presb_IP, massv_IP,T_IP,Ys_IP)
         $:GPU_ROUTINE(parallelism='[seq]')
         type(scalar_field), &
             dimension(sys_size), &
@@ -872,6 +874,8 @@ contains
         real(wp), optional, dimension(:), intent(INOUT) :: r_IP, v_IP, pb_IP, mv_IP
         real(wp), optional, dimension(:), intent(INOUT) :: nmom_IP
         real(wp), optional, dimension(:), intent(INOUT) :: presb_IP, massv_IP
+        real(wp), optional, dimension(num_species), intent(INOUT) :: Ys_IP
+        real(wp), optional, intent(INOUT) :: T_IP
 
         integer :: i, j, k, l, q !< Iterator variables
         integer :: i1, i2, j1, j2, k1, k2 !< Iterator variables

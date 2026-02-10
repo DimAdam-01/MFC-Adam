@@ -6,6 +6,7 @@
     real(wp) :: factor
     real(wp) :: r0, alpha, r2
     real(wp) :: sinA, cosA
+    real(wp) :: deee
 
     real(wp) :: r_sq
 
@@ -13,6 +14,10 @@
     real(wp) :: sigma, gauss1, gauss2
     ! # 208
     real(wp) :: ei, d, fsm, alpha_air, alpha_sf6
+    real(wp) :: x_transition      ! Location of transition center
+real(wp) :: y_shear_layer, delta_shear, tanh_arg, mix_factor
+real(wp) :: u_max, p_ref, rho_ref
+real(wp) :: u_mean, v_kick, perturbation_amp, perturbation_k
 
     eps = 1.e-9_wp
 #:enddef
@@ -331,6 +336,55 @@
             q_prim_vf(momxb + 1)%sf(i, j, 0) = 112.99092883944267*((0.1/0.3))*x_cc(i)*exp(0.5*(1 - sqrt(x_cc(i)**2 + y_cc(j)**2)))
         end if
 
+    case (291)
+
+y_shear_layer = 3.048e-3_wp  
+
+! 2. Shear Layer Thickness (Smoothing)
+! This spreads the jump over approx 1.0 mm to prevent acoustic shock.
+delta_shear = 0.5e-3_wp      
+
+! 3. Flow Reference Conditions
+u_max   = 50.0_wp       ! Freestream Velocity (m/s)
+p_ref   = 101325.0_wp   ! Reference Pressure (Pa) - KEEP CONSTANT
+rho_ref = 1.0_wp        ! Reference Density (kg/m3) - KEEP CONSTANT
+
+! 4. Perturbation Parameters (To trigger vortices)
+! Amplitude: 5% of freestream velocity
+! Wavenumber: Makes the kick oscillate along X
+perturbation_amp = 0.05_wp * u_max 
+perturbation_k   = 200.0_wp ! Adjust to fit
+
+tanh_arg = (y_cc(j) - y_shear_layer) / delta_shear
+        mix_factor = 0.5_wp * (1.0_wp + tanh(tanh_arg))
+
+        ! --- B. Mean Velocity ---
+        u_mean = u_max * mix_factor
+
+        ! --- C. Vertical Perturbation (The "Kick") ---
+        ! This adds a small vertical wiggle ONLY near the shear layer.
+        ! exp(...) ensures the kick is zero far away from the interface.
+        ! sin(...) makes it oscillate along the streamwise direction.
+        
+        v_kick = perturbation_amp * &
+                 sin(perturbation_k * x_cc(i)) * &
+                 exp( -1.0_wp * (tanh_arg**2) )
+
+        ! --- D. Assign to State Vector ---
+        ! 1. Density (Constant)
+        q_prim_vf(contxb)%sf(i,j,0) = rho_ref
+
+        ! 2. U-Velocity (Smooth Profile)
+        q_prim_vf(momxb)%sf(i,j,0) = u_mean
+
+        ! 3. V-Velocity (The Perturbation)
+        q_prim_vf(momxe)%sf(i,j,0) = v_kick
+
+        ! 4. W-Velocity (assuming 2D or 0 initially)
+        ! q_prim_vf(momxz)%sf(i,j,0) = 0.0_wp 
+
+        ! 5. Pressure (Constant - Crucial for stability!)
+        q_prim_vf(E_idx)%sf(i,j,0)  = p_ref
     case default
         if (proc_rank == 0) then
             call s_int_to_str(patch_id, iStr)
