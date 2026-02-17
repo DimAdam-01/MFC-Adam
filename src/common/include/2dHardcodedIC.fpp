@@ -18,6 +18,10 @@
 real(wp) :: y_shear_layer, delta_shear, tanh_arg, mix_factor
 real(wp) :: u_max, p_ref, rho_ref
 real(wp) :: u_mean, v_kick, perturbation_amp, perturbation_k
+real(wp) :: T_wall, T_inf, P_atm, y_height, T_loc,y_dist
+real(wp) :: delta_th,  T_target, rho_target, R_mix
+real(wp) :: Y_N2, Y_O2, MW_N2, MW_O2
+real(wp) :: x_lim_left, x_lim_right
 
     eps = 1.e-9_wp
 #:enddef
@@ -338,53 +342,82 @@ real(wp) :: u_mean, v_kick, perturbation_amp, perturbation_k
 
     case (291)
 
-y_shear_layer = 3.048e-3_wp  
+    ! Setup Values
+T_wall  = 600.0_wp
+T_inf   = 1125.0_wp
+P_atm   = 101325.0_wp  ! 1 atm in Pa
+delta_th = 0.0001_wp    ! Thermal BL thickness (e.g., 2mm - ADJUST THIS)
+
+! Geometry Limits (converting mm to meters if your grid is in meters)
+x_lim_left  = (43.48e-3_wp - 21.99e-3_wp - 14.15e-3_wp)
+x_lim_right = (43.48e-3_wp - 21.99e-3_wp)
+
+! Air Properties (Approximate)
+MW_N2 = 28.0134e-3_wp ! kg/mol
+MW_O2 = 31.999e-3_wp  ! kg/mol
+Y_N2  = 0.767_wp      ! Mass fraction
+Y_O2  = 0.233_wp
+
+! Calculate Mixture Gas Constant R_mix = R_u * sum(Y_i / MW_i)
+R_mix = 8.314462618_wp * ( (Y_N2 / MW_N2) + (Y_O2 / MW_O2) )
+
+y_shear_layer = 3.048e-3_wp
 
 ! 2. Shear Layer Thickness (Smoothing)
-! This spreads the jump over approx 1.0 mm to prevent acoustic shock.
-delta_shear = 0.5e-3_wp      
+delta_shear = 0.8e-3_wp
 
-! 3. Flow Reference Conditions
+! Flow Reference Conditions
 u_max   = 50.0_wp       ! Freestream Velocity (m/s)
-p_ref   = 101325.0_wp   ! Reference Pressure (Pa) - KEEP CONSTANT
-rho_ref = 1.0_wp        ! Reference Density (kg/m3) - KEEP CONSTANT
+p_ref   = 101325.0_wp   ! Reference Pressure (Pa)
+rho_ref = 1.0_wp        ! Reference Density (kg/m3)
 
-! 4. Perturbation Parameters (To trigger vortices)
-! Amplitude: 5% of freestream velocity
-! Wavenumber: Makes the kick oscillate along X
-perturbation_amp = 0.05_wp * u_max 
-perturbation_k   = 200.0_wp ! Adjust to fit
+! Perturbation Parameters (To trigger vortices/Rossiter modes)
+perturbation_amp = 0.05_wp * u_max   ! Amplitude: 5% of freestream
+perturbation_k   = 200.0_wp          ! Wavenumber: Oscillations along X
 
-tanh_arg = (y_cc(j) - y_shear_layer) / delta_shear
-        mix_factor = 0.5_wp * (1.0_wp + tanh(tanh_arg))
 
-        ! --- B. Mean Velocity ---
-        u_mean = u_max * mix_factor
 
-        ! --- C. Vertical Perturbation (The "Kick") ---
-        ! This adds a small vertical wiggle ONLY near the shear layer.
-        ! exp(...) ensures the kick is zero far away from the interface.
-        ! sin(...) makes it oscillate along the streamwise direction.
+  
+        IF (y_cc(j) > y_shear_layer) THEN
+
+            tanh_arg = (y_cc(j) - y_shear_layer) / delta_shear
+            mix_factor = tanh(tanh_arg)
+            u_mean     = u_max * mix_factor
+
+            v_kick = 0.0_wp
+
+        ELSE
+
+
+            u_mean = 0.0_wp
+            v_kick = 0.0_wp
+
+        END IF
+
+!IF (y_cc(j) > y_shear_layer-0.01) THEN
+
         
-        v_kick = perturbation_amp * &
-                 sin(perturbation_k * x_cc(i)) * &
-                 exp( -1.0_wp * (tanh_arg**2) )
+        ! We are in the Left or Right regions: Apply Tanh Profile
+ !       y_dist = y_cc(j) ! Distance from bottom wall
+        
+        ! Tanh Temperature Profile: T = Tw + (Tinf - Tw) * tanh(y/delta)
+  !      T_loc = T_wall + (T_inf - T_wall) * tanh((y_dist-y_shear_layer) / delta_th)
 
-        ! --- D. Assign to State Vector ---
-        ! 1. Density (Constant)
-        q_prim_vf(contxb)%sf(i,j,0) = rho_ref
 
-        ! 2. U-Velocity (Smooth Profile)
+   ! else
+        ! We are in the middle gap: Uniform Freestream Temperature
+        T_loc = T_inf
+   ! end if
+
+        q_prim_vf(contxb)%sf(i,j,0) = P_atm / (R_mix * T_loc)
         q_prim_vf(momxb)%sf(i,j,0) = u_mean
 
-        ! 3. V-Velocity (The Perturbation)
         q_prim_vf(momxe)%sf(i,j,0) = v_kick
 
-        ! 4. W-Velocity (assuming 2D or 0 initially)
-        ! q_prim_vf(momxz)%sf(i,j,0) = 0.0_wp 
-
-        ! 5. Pressure (Constant - Crucial for stability!)
         q_prim_vf(E_idx)%sf(i,j,0)  = p_ref
+
+       q_prim_vf(chemxb)%sf(i,j,0) =   0.21_wp
+        q_prim_vf(chemxe)%sf(i,j,0) =   0.79_wp
     case default
         if (proc_rank == 0) then
             call s_int_to_str(patch_id, iStr)

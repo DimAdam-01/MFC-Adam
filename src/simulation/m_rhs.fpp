@@ -167,9 +167,10 @@ module m_rhs
     $:GPU_DECLARE(create='[alf_sum]')
 
     real(wp), allocatable, dimension(:, :, :) :: blkmod1, blkmod2, alpha1, alpha2, Kterm
+    real(wp), allocatable, dimension(:, :, :) :: Pressure_on_Ghost_Point
     real(wp), allocatable, dimension(:, :, :, :) :: qL_rsx_vf, qL_rsy_vf, qL_rsz_vf, qR_rsx_vf, qR_rsy_vf, qR_rsz_vf
     real(wp), allocatable, dimension(:, :, :, :) :: dqL_rsx_vf, dqL_rsy_vf, dqL_rsz_vf, dqR_rsx_vf, dqR_rsy_vf, dqR_rsz_vf
-    $:GPU_DECLARE(create='[blkmod1,blkmod2,alpha1,alpha2,Kterm]')
+    $:GPU_DECLARE(create='[blkmod1,blkmod2,alpha1,alpha2,Kterm, Pressure_on_Ghost_Point]')
     $:GPU_DECLARE(create='[qL_rsx_vf,qL_rsy_vf,qL_rsz_vf,qR_rsx_vf,qR_rsy_vf,qR_rsz_vf]')
     $:GPU_DECLARE(create='[dqL_rsx_vf,dqL_rsy_vf,dqL_rsz_vf,dqR_rsx_vf,dqR_rsy_vf,dqR_rsz_vf]')
 
@@ -633,6 +634,10 @@ contains
             @:ALLOCATE(blkmod1(0:m, 0:n, 0:p), blkmod2(0:m, 0:n, 0:p), alpha1(0:m, 0:n, 0:p), alpha2(0:m, 0:n, 0:p), Kterm(0:m, 0:n, 0:p))
         end if
 
+        if (chemistry) then
+           @:ALLOCATE(Pressure_on_Ghost_Point(idwbuff(1)%beg:idwbuff(1)%end,idwbuff(2)%beg:idwbuff(2)%end,idwbuff(3)%beg:idwbuff(3)%end))
+        end if
+
         call s_initialize_pressure_relaxation_module
 
         if (bubbles_euler) then
@@ -678,6 +683,8 @@ contains
             end do
             $:END_GPU_PARALLEL_LOOP()
 
+          !  print *, t_step
+
             ! Converting Conservative to Primitive Variables
 
             if (mpp_lim .and. bubbles_euler) then
@@ -713,7 +720,7 @@ contains
                 q_cons_qp%vf, &
                 q_T_sf, &
                 q_prim_qp%vf, &
-                idwint)
+                idwint, t_step= t_step, stage = stage)
             call nvtxEndRange
 
             call nvtxStartRange("RHS-COMMUNICATION")

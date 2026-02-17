@@ -65,6 +65,10 @@ module m_variables_conversion
     real(wp), allocatable, dimension(:, :, :), public :: pi_inf_sf !< Scalar liquid stiffness function
     real(wp), allocatable, dimension(:, :, :), public :: qv_sf !< Scalar liquid energy reference function
 
+    type(integer_field), public :: ghost_points_index
+    type(scalar_field),  public :: pressure_ghost_point
+    $:GPU_DECLARE(create='[ghost_points_index, pressure_ghost_point]')
+
 contains
 
     !> Dispatch to the s_convert_mixture_to_mixture_variables
@@ -131,6 +135,7 @@ contains
 
         integer :: s !< Generic loop iterator
 
+
         #:if not chemistry
             ! Depending on model_eqns and bubbles_euler, the appropriate procedure
             ! for computing pressure is targeted by the procedure pointer
@@ -177,8 +182,12 @@ contains
 
             T_guess = T
 
+
+
             call get_temperature(e_Per_Kg - Pdyn_Per_Kg, T_guess, Y_rs, .true., T)
-            call get_pressure(rho, T, Y_rs, pres)
+               call get_pressure(rho, T, Y_rs, pres)
+      
+
 
         #:endif
 
@@ -419,6 +428,20 @@ contains
             qvs(i) = fluid_pp(i)%qv
             qvps(i) = fluid_pp(i)%qvp
         end do
+
+        if (p > 0) then
+        @:ALLOCATE(ghost_points_index%sf(0:m, 0:n, 0:p))
+        @:ALLOCATE(pressure_ghost_point%sf(0:m, 0:n, 0:p))
+    else
+        @:ALLOCATE(ghost_points_index%sf(0:m, 0:n, 0:0))
+        @:ALLOCATE(pressure_ghost_point%sf(0:m, 0:n, 0:0))
+    end if
+
+    ghost_points_index%sf = 0
+    pressure_ghost_point%sf = 0.0_wp
+
+    @:ACC_SETUP_SFs(ghost_points_index)
+    @:ACC_SETUP_SFs(pressure_ghost_point)
         $:GPU_UPDATE(device='[gammas,gs_min,pi_infs,ps_inf,cvs,qvs,qvps,Gs_vc]')
 
 #ifdef MFC_SIMULATION
@@ -581,12 +604,13 @@ contains
     subroutine s_convert_conservative_to_primitive_variables(qK_cons_vf, &
                                                              q_T_sf, &
                                                              qK_prim_vf, &
-                                                             ibounds)
+                                                             ibounds, t_step, stage)
 
         type(scalar_field), dimension(sys_size), intent(in) :: qK_cons_vf
         type(scalar_field), intent(inout) :: q_T_sf
         type(scalar_field), dimension(sys_size), intent(inout) :: qK_prim_vf
         type(int_bounds_info), dimension(1:3), intent(in) :: ibounds
+        integer, optional, intent(in) :: t_step, stage
         #:if USING_AMD and not MFC_CASE_OPTIMIZATION
             real(wp), dimension(3) :: alpha_K, alpha_rho_K
             real(wp), dimension(3) :: nRtmp
@@ -620,12 +644,13 @@ contains
         real(wp) :: f, dGa_dW, dp_dW, df_dW ! Functions within Newton-Raphson iteration
         integer :: iter ! Newton-Raphson iteration counter
 
+
         $:GPU_PARALLEL_LOOP(collapse=3, private='[alpha_K, alpha_rho_K, Re_K, nRtmp, rho_K, gamma_K, pi_inf_K,qv_K, dyn_pres_K, rhoYks, B, pres, vftmp, nbub_sc, G_K, T, pres_mag, Ga, B2, m2, S, W, dW, E, D, f, dGa_dW, dp_dW, df_dW, iter ]')
         do l = ibounds(3)%beg, ibounds(3)%end
             do k = ibounds(2)%beg, ibounds(2)%end
                 do j = ibounds(1)%beg, ibounds(1)%end
                     dyn_pres_K = 0._wp
-
+         
                     call s_compute_species_fraction(qK_cons_vf, j, k, l, alpha_rho_K, alpha_K)
 
                     if (model_eqns /= 4) then
@@ -788,7 +813,22 @@ contains
                                             dyn_pres_K, pi_inf_K, gamma_K, rho_K, &
                                             qv_K, rhoYks, pres, T, pres_mag=pres_mag)
 
-                    qK_prim_vf(E_idx)%sf(j, k, l) = pres
+
+                       if (.not. (t_step == 0 .and. stage == 1)) then
+                            ! Safety check: Ensure indices are within the allocated domain (0:m, 0:n, 0:p)
+                            ! to prevent segfaults if the loop iterates over buffer zones.
+                            if (j >= 0 .and. j <= m .and. k >= 0 .and. k <= n .and. l >= 0 .and. l <= p) then
+                                if (ghost_points_index%sf(j, k, l) == 1) then
+                                 pres = pressure_ghost_point%sf(j, k, l)
+                                               if (j .eq. 200) then
+                               !print *, pres, k, y_cc(k), T
+                               end if
+                              end if
+                 
+                           end if
+                       end if
+
+                        qK_prim_vf(E_idx)%sf(j, k, l) = pres
 
                     if (chemistry) then
                         q_T_sf%sf(j, k, l) = T
@@ -1401,6 +1441,8 @@ contains
             @:DEALLOCATE(bubrs_vc)
         end if
 #endif
+@:DEALLOCATE(ghost_points_index%sf)
+    @:DEALLOCATE(pressure_ghost_point%sf)
 
     end subroutine s_finalize_variables_conversion_module
 

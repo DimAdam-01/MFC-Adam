@@ -110,8 +110,6 @@ case = {
 if args.chemistry:
     for i in range(len(sol_L.Y)):
         case[f"chem_wrt_Y({i + 1})"] = "T"
-        case[f"patch_icpp(1)%Y({i+1})"] = sol_L.Y[i]
-        case[f"patch_icpp(2)%Y({i+1})"] = sol_R.Y[i]
 
 if __name__ == "__main__":
     print(json.dumps(case))

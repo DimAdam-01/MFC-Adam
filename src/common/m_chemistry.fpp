@@ -248,11 +248,15 @@ contains
                             rho_L = q_prim_qp(1)%sf(x, y, z)
                             rho_R = q_prim_qp(1)%sf(x + offsets(1), y + offsets(2), z + offsets(3))
 
-                            T_L = P_L/rho_L/Rgas_L
+                            T_L = P_L/rho_L/Rgas_L      
                             T_R = P_R/rho_R/Rgas_R
 
                             rho_cell = 0.5_wp*(rho_L + rho_R)
                             dT_dxi = (T_R - T_L)/grid_spacing
+
+                            if (x .eq. 200 .and. idir .eq. 2) then
+                            print *, dT_dxi, y , T_L, T_R
+                            end if
 
                             ! Get transport properties
                             call get_species_mass_diffusivities_mixavg(P_L, T_L, Ys_L, mass_diffusivities_mixavg1)

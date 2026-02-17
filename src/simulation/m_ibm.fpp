@@ -27,6 +27,8 @@ module m_ibm
     use m_ib_patches
 
     use m_viscous
+    use m_thermochem, only: &
+        num_species, molecular_weights, gas_constant, get_mixture_molecular_weight, get_mixture_energy_mass
 
     implicit none
 
@@ -42,13 +44,18 @@ module m_ibm
 
     integer, allocatable, dimension(:, :, :) :: patch_id_fp
     type(integer_field), public :: ib_markers
+
+      type(ghost_point), dimension(:), allocatable :: ghost_points
+       type(ghost_point), dimension(:), allocatable :: inner_points  
+
     type(levelset_field), public :: levelset
     type(levelset_norm_field), public :: levelset_norm
     $:GPU_DECLARE(create='[ib_markers,levelset,levelset_norm]')
 
-    type(ghost_point), dimension(:), allocatable :: ghost_points
-    type(ghost_point), dimension(:), allocatable :: inner_points
+
     $:GPU_DECLARE(create='[ghost_points,inner_points]')
+
+
 
     integer :: num_gps !< Number of ghost points
     integer :: num_inner_gps !< Number of ghost points
@@ -67,6 +74,7 @@ contains
         if (p > 0) then
             @:ALLOCATE(ib_markers%sf(-buff_size:m+buff_size, &
                 -buff_size:n+buff_size, -buff_size:p+buff_size))
+      
             @:ALLOCATE(levelset%sf(-buff_size:m+buff_size, &
                 -buff_size:n+buff_size, -buff_size:p+buff_size, 1:num_ibs))
             @:ALLOCATE(levelset_norm%sf(-buff_size:m+buff_size, &
@@ -74,6 +82,7 @@ contains
         else
             @:ALLOCATE(ib_markers%sf(-buff_size:m+buff_size, &
                 -buff_size:n+buff_size, 0:0))
+       
             @:ALLOCATE(levelset%sf(-buff_size:m+buff_size, &
                 -buff_size:n+buff_size, 0:0, 1:num_ibs))
             @:ALLOCATE(levelset_norm%sf(-buff_size:m+buff_size, &
@@ -83,6 +92,7 @@ contains
         @:ACC_SETUP_SFs(ib_markers)
         @:ACC_SETUP_SFs(levelset)
         @:ACC_SETUP_SFs(levelset_norm)
+ 
 
         $:GPU_ENTER_DATA(copyin='[num_gps,num_inner_gps]')
 
@@ -182,6 +192,7 @@ contains
         real(wp), dimension(3) :: vel_IP, vel_norm_IP
         real(wp) :: c_IP
         real(wp) :: T_IP
+        real(wp) :: T_GP,MW_GP,E_GP
         real(wp), dimension(num_species) :: Ys_IP
         #:if not MFC_CASE_OPTIMIZATION and USING_AMD
             real(wp), dimension(3) :: Gs
@@ -236,8 +247,16 @@ contains
         end do
         $:END_GPU_PARALLEL_LOOP()
 
+        if (p > 0) then
+            ! Parallel loop or simple assignment if compiler supports it
+            ! Typically simpler to just do:
+            ghost_points_index%sf = 0
+        else
+            ghost_points_index%sf(0:m, 0:n, 0:0) = 0
+        end if
+
         if (num_gps > 0) then
-            $:GPU_PARALLEL_LOOP(private='[i,physical_loc,dyn_pres,alpha_rho_IP, alpha_IP,pres_IP,vel_IP,vel_g,vel_norm_IP,r_IP, v_IP,pb_IP,mv_IP,nmom_IP,presb_IP,massv_IP,rho, gamma,pi_inf,Re_K,G_K,Gs,gp,innerp,norm,buf, radial_vector, rotation_velocity, j,k,l,q,qv_K,c_IP,nbub,patch_id]')
+            $:GPU_PARALLEL_LOOP(private='[i,physical_loc,dyn_pres,alpha_rho_IP, alpha_IP,pres_IP,vel_IP,vel_g,vel_norm_IP,r_IP, v_IP,pb_IP,mv_IP,nmom_IP,presb_IP,massv_IP,rho, gamma,pi_inf,Re_K,G_K,Gs,gp,innerp,norm,buf, radial_vector, rotation_velocity, j,k,l,q,qv_K,c_IP,nbub,patch_id,Ys_IP,T_IP,T_GP,MW_GP,E_GP]')
             do i = 1, num_gps
 
                 gp = ghost_points(i)
@@ -245,6 +264,9 @@ contains
                 k = gp%loc(2)
                 l = gp%loc(3)
                 patch_id = ghost_points(i)%ib_patch_id
+
+                 ghost_points_index%sf(j, k, l) = 1
+
 
                 ! Calculate physical location of GP
                 if (p > 0) then
@@ -280,6 +302,17 @@ contains
                     q_prim_vf(advxb + q - 1)%sf(j, k, l) = alpha_IP(q)
                 end do
 
+                $:GPU_LOOP(parallelism='[seq]')
+                if (chemistry) then
+                do q = chemxb, chemxe
+                    q_prim_vf(q)%sf(j,k,l) = Ys_IP(q-chemxb+1)
+                end do
+                end if
+
+                T_GP = 2.0_wp*600.0_wp - T_IP
+                call get_mixture_energy_mass(T_GP, Ys_IP, E_GP)
+
+
                 if (surface_tension) then
                     q_prim_vf(c_idx)%sf(j, k, l) = c_IP
                 end if
@@ -287,6 +320,10 @@ contains
                 ! set the pressure
                 if (patch_ib(patch_id)%moving_ibm <= 1) then
                     q_prim_vf(E_idx)%sf(j, k, l) = pres_IP
+
+                pressure_ghost_point%sf(j, k, l) = pres_IP
+
+
                 else
                     q_prim_vf(E_idx)%sf(j, k, l) = 0._wp
                     $:GPU_LOOP(parallelism='[seq]')
@@ -364,8 +401,17 @@ contains
                 ! Set Energy
                 if (bubbles_euler) then
                     q_cons_vf(E_idx)%sf(j, k, l) = (1 - alpha_IP(1))*(gamma*pres_IP + pi_inf + dyn_pres)
+                else if (chemistry) then
+                 q_cons_vf(E_idx)%sf(j, k, l) =    alpha_rho_IP(contxb)*E_GP+ dyn_pres
                 else
                     q_cons_vf(E_idx)%sf(j, k, l) = gamma*pres_IP + pi_inf + dyn_pres
+                end if
+
+                 $:GPU_LOOP(parallelism='[seq]')
+                if (chemistry) then
+                  do q = chemxb,chemxe
+                     q_cons_vf(q)%sf(j,k,l) = alpha_rho_IP(contxb)*Ys_IP(q-chemxb+1)
+                  end do
                 end if
                 ! Set bubble vars
                 if (bubbles_euler .and. .not. qbmm) then
@@ -877,6 +923,9 @@ contains
         real(wp), optional, dimension(num_species), intent(INOUT) :: Ys_IP
         real(wp), optional, intent(INOUT) :: T_IP
 
+        real(wp), dimension(num_species) :: Ys_S
+        real(wp) :: MW_S,T_S, R_gas_S,MW_IPS
+
         integer :: i, j, k, l, q !< Iterator variables
         integer :: i1, i2, j1, j2, k1, k2 !< Iterator variables
         real(wp) :: coeff
@@ -894,6 +943,10 @@ contains
         alpha_IP = 0._wp
         pres_IP = 0._wp
         vel_IP = 0._wp
+        Ys_IP = 0.0_wp
+        T_IP = 0.0_wp
+        T_S = 0.0_wp
+        MW_IPS = 0.0_wp
 
         if (surface_tension) c_IP = 0._wp
 
@@ -922,10 +975,29 @@ contains
                 do k = k1, k2
 
                     coeff = gp%interp_coeffs(i - i1 + 1, j - j1 + 1, k - k1 + 1)
+                    if (chemistry) then
+                           do l = chemxb,chemxe
+                               Ys_S(l-chemxb+1) = q_prim_vf(l)%sf(i,j,k)
+                          
+                           end do 
+                       
+                            call get_mixture_molecular_weight(Ys_S,MW_S)
 
-                    pres_IP = pres_IP + coeff* &
-                              q_prim_vf(E_idx)%sf(i, j, k)
+                            R_gas_S = gas_constant/MW_S
 
+                            T_S =q_prim_vf(E_idx)%sf(i,j,k) / q_prim_vf(contxb)%sf(i,j,k) / R_gas_S
+                                                T_IP = T_IP + coeff*T_S
+
+                    end if
+
+
+                  
+                  if (chemistry) then
+                    pres_IP = pres_IP+coeff*q_prim_vf(contxb)%sf(i,j,k)*T_S*R_gas_S
+                  else 
+                  pres_IP = pres_IP + coeff* &
+                             q_prim_vf(E_idx)%sf(i, j, k)
+                  end if
                     $:GPU_LOOP(parallelism='[seq]')
                     do q = momxb, momxe
                         vel_IP(q + 1 - momxb) = vel_IP(q + 1 - momxb) + coeff* &
@@ -939,6 +1011,14 @@ contains
                         alpha_IP(l) = alpha_IP(l) + coeff* &
                                       q_prim_vf(advxb + l - 1)%sf(i, j, k)
                     end do
+
+                    if (chemistry) then 
+                      do l = chemxb, chemxe
+
+                      Ys_IP(l-chemxb+1) = Ys_IP(l-chemxb+1)+coeff*q_prim_vf(l)%sf(i,j,k)
+                      end do
+                    end if
+
 
                     if (surface_tension) then
                         c_IP = c_IP + coeff*q_prim_vf(c_idx)%sf(i, j, k)
@@ -979,6 +1059,12 @@ contains
                 end do
             end do
         end do
+
+        if (chemistry) then
+                       call get_mixture_molecular_weight(Ys_IP,MW_IPS)
+
+                    alpha_rho_IP(contxb) = pres_IP*MW_IPS/gas_constant/T_IP
+end if
 
     end subroutine s_interpolate_image_point
 
