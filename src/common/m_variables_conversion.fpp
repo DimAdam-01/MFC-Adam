@@ -814,19 +814,19 @@ contains
                                             qv_K, rhoYks, pres, T, pres_mag=pres_mag)
 
 
-                       if (.not. (t_step == 0 .and. stage == 1)) then
+                 !     if (.not. (t_step == 0 .and. stage == 1)) then
                             ! Safety check: Ensure indices are within the allocated domain (0:m, 0:n, 0:p)
                             ! to prevent segfaults if the loop iterates over buffer zones.
-                            if (j >= 0 .and. j <= m .and. k >= 0 .and. k <= n .and. l >= 0 .and. l <= p) then
-                                if (ghost_points_index%sf(j, k, l) == 1) then
-                                 pres = pressure_ghost_point%sf(j, k, l)
-                                               if (j .eq. 200) then
-                               !print *, pres, k, y_cc(k), T
-                               end if
-                              end if
+                 !           if (j >= 0 .and. j <= m .and. k >= 0 .and. k <= n .and. l >= 0 .and. l <= p) then
+                 !               if (ghost_points_index%sf(j, k, l) == 1) then
+                 !                pres = pressure_ghost_point%sf(j, k, l)
+                  !                             if (j .eq. 200) then
+                  !             !print *, pres, k, y_cc(k), T
+                  !             end if
+                  !            end if
                  
-                           end if
-                       end if
+                !           end if
+                !       end if
 
                         qK_prim_vf(E_idx)%sf(j, k, l) = pres
 

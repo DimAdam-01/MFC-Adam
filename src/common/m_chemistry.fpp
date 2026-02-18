@@ -146,6 +146,7 @@ contains
 
                     rho = q_cons_qp(contxe)%sf(x, y, z)
                     T = q_T_sf%sf(x, y, z)
+                    print *, T
 
                     call get_net_production_rates(rho, T, Ys, omega)
 
@@ -167,11 +168,12 @@ contains
 
     end subroutine s_compute_chemistry_reaction_flux
 
-    subroutine s_compute_chemistry_diffusion_flux(idir, q_prim_qp, flux_src_vf, irx, iry, irz)
+    subroutine s_compute_chemistry_diffusion_flux(idir, q_prim_qp, flux_src_vf, irx, iry, irz, q_T_sf)
 
         type(scalar_field), dimension(sys_size), intent(in) :: q_prim_qp
         type(scalar_field), dimension(sys_size), intent(inout) :: flux_src_vf
         type(int_bounds_info), intent(in) :: irx, iry, irz
+        type(scalar_field), intent(in) :: q_T_sf
 
         integer, intent(in) :: idir
         #:if not MFC_CASE_OPTIMIZATION and USING_AMD
@@ -248,15 +250,23 @@ contains
                             rho_L = q_prim_qp(1)%sf(x, y, z)
                             rho_R = q_prim_qp(1)%sf(x + offsets(1), y + offsets(2), z + offsets(3))
 
-                            T_L = P_L/rho_L/Rgas_L      
-                            T_R = P_R/rho_R/Rgas_R
+                            if ( x .eq. -1 .or. x .eq. 499 .or. y .eq. -1 .or. y .eq. 499) then
+                              T_L = P_L/rho_L/Rgas_L     
+                              T_R =  P_R/rho_R/Rgas_R
 
+                            else 
+                             T_L =q_T_sf%sf(x, y, z)! P_L/rho_L/Rgas_L      
+                              T_R = q_T_sf%sf(x + offsets(1), y + offsets(2), z + offsets(3))! P_R/rho_R/Rgas_R
+                            end if
+
+          
                             rho_cell = 0.5_wp*(rho_L + rho_R)
                             dT_dxi = (T_R - T_L)/grid_spacing
 
-                            if (x .eq. 200 .and. idir .eq. 2) then
-                            print *, dT_dxi, y , T_L, T_R
-                            end if
+                           ! if (x .eq. 200 .and. idir == 2) then
+                           ! print *, T_L, T_R, y_cc(y), y
+                           ! end if
+                         
 
                             ! Get transport properties
                             call get_species_mass_diffusivities_mixavg(P_L, T_L, Ys_L, mass_diffusivities_mixavg1)

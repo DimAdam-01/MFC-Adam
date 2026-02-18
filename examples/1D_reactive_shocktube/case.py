@@ -57,9 +57,9 @@ case = {
     "p": 0,
     "dt": float(dt),
     "t_step_start": 0,
-    "t_step_stop": NT,
-    "t_step_save": NS,
-    "t_step_print": NS,
+    "t_step_stop": 1,
+    "t_step_save": 1,
+    "t_step_print": 1,
     "parallel_io": "F" if args.mfc.get("mpi", True) else "F",
     # Simulation Algorithm Parameters
     "model_eqns": 2,
