@@ -1,5 +1,5 @@
 !>
-!! @file m_boundary_conditions_common.fpp
+!! @file
 !! @brief Contains module m_boundary_conditions_common
 
 !> @brief The purpose of the module is to apply noncharacteristic and processor
@@ -20,6 +20,9 @@ module m_boundary_common
     use m_delay_file_access
 
     use m_compile_specific
+
+    use m_thermochem, only: &
+        num_species, get_mixture_molecular_weight, gas_constant
 
     implicit none
 
@@ -86,9 +89,10 @@ contains
     !>  The purpose of this procedure is to populate the buffers
     !!      of the primitive variables, depending on the selected
     !!      boundary conditions.
-    impure subroutine s_populate_variables_buffers(bc_type, q_prim_vf, pb_in, mv_in)
+    impure subroutine s_populate_variables_buffers(bc_type, q_prim_vf, pb_in, mv_in, q_T_sf)
 
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
+        type(scalar_field), optional, intent(inout) :: q_T_sf
         real(stp), optional, dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:, 1:), intent(inout) :: pb_in, mv_in
         type(integer_field), dimension(1:num_dims, 1:2), intent(in) :: bc_type
 
@@ -96,22 +100,22 @@ contains
 
         ! Population of Buffers in x-direction
         if (bc_x%beg >= 0) then
-            call s_mpi_sendrecv_variables_buffers(q_prim_vf, 1, -1, sys_size, pb_in, mv_in)
+            call s_mpi_sendrecv_variables_buffers(q_prim_vf, 1, -1, sys_size, pb_in, mv_in, q_T_sf=q_T_sf)
         else
             $:GPU_PARALLEL_LOOP(private='[l,k]', collapse=2)
             do l = 0, p
                 do k = 0, n
                     select case (int(bc_type(1, 1)%sf(0, k, l)))
                     case (BC_CHAR_SUP_OUTFLOW:BC_GHOST_EXTRAP)
-                        call s_ghost_cell_extrapolation(q_prim_vf, 1, -1, k, l)
+                        call s_ghost_cell_extrapolation(q_prim_vf, 1, -1, k, l, q_T_sf)
                     case (BC_REFLECTIVE)
                         call s_symmetry(q_prim_vf, 1, -1, k, l, pb_in, mv_in)
                     case (BC_PERIODIC)
-                        call s_periodic(q_prim_vf, 1, -1, k, l, pb_in, mv_in)
+                        call s_periodic(q_prim_vf, 1, -1, k, l, pb_in, mv_in, q_T_sf)
                     case (BC_SLIP_WALL)
-                        call s_slip_wall(q_prim_vf, 1, -1, k, l)
+                        call s_slip_wall(q_prim_vf, 1, -1, k, l, q_T_sf)
                     case (BC_NO_SLIP_WALL)
-                        call s_no_slip_wall(q_prim_vf, 1, -1, k, l)
+                        call s_no_slip_wall(q_prim_vf, 1, -1, k, l, q_T_sf)
                     case (BC_DIRICHLET)
                         call s_dirichlet(q_prim_vf, 1, -1, k, l)
                     end select
@@ -126,22 +130,22 @@ contains
         end if
 
         if (bc_x%end >= 0) then
-            call s_mpi_sendrecv_variables_buffers(q_prim_vf, 1, 1, sys_size, pb_in, mv_in)
+            call s_mpi_sendrecv_variables_buffers(q_prim_vf, 1, 1, sys_size, pb_in, mv_in, q_T_sf=q_T_sf)
         else
             $:GPU_PARALLEL_LOOP(private='[l,k]', collapse=2)
             do l = 0, p
                 do k = 0, n
                     select case (int(bc_type(1, 2)%sf(0, k, l)))
                     case (BC_CHAR_SUP_OUTFLOW:BC_GHOST_EXTRAP) ! Ghost-cell extrap. BC at end
-                        call s_ghost_cell_extrapolation(q_prim_vf, 1, 1, k, l)
+                        call s_ghost_cell_extrapolation(q_prim_vf, 1, 1, k, l, q_T_sf)
                     case (BC_REFLECTIVE)
                         call s_symmetry(q_prim_vf, 1, 1, k, l, pb_in, mv_in)
                     case (BC_PERIODIC)
-                        call s_periodic(q_prim_vf, 1, 1, k, l, pb_in, mv_in)
+                        call s_periodic(q_prim_vf, 1, 1, k, l, pb_in, mv_in, q_T_sf)
                     case (BC_SLIP_WALL)
-                        call s_slip_wall(q_prim_vf, 1, 1, k, l)
+                        call s_slip_wall(q_prim_vf, 1, 1, k, l, q_T_sf)
                     case (BC_NO_SLIP_WALL)
-                        call s_no_slip_wall(q_prim_vf, 1, 1, k, l)
+                        call s_no_slip_wall(q_prim_vf, 1, 1, k, l, q_T_sf)
                     case (BC_DIRICHLET)
                         call s_dirichlet(q_prim_vf, 1, 1, k, l)
                     end select
@@ -162,24 +166,24 @@ contains
         #:if not MFC_CASE_OPTIMIZATION or num_dims > 1
 
             if (bc_y%beg >= 0) then
-                call s_mpi_sendrecv_variables_buffers(q_prim_vf, 2, -1, sys_size, pb_in, mv_in)
+                call s_mpi_sendrecv_variables_buffers(q_prim_vf, 2, -1, sys_size, pb_in, mv_in, q_T_sf=q_T_sf)
             else
                 $:GPU_PARALLEL_LOOP(private='[l,k]', collapse=2)
                 do l = 0, p
                     do k = -buff_size, m + buff_size
                         select case (int(bc_type(2, 1)%sf(k, 0, l)))
                         case (BC_CHAR_SUP_OUTFLOW:BC_GHOST_EXTRAP)
-                            call s_ghost_cell_extrapolation(q_prim_vf, 2, -1, k, l)
+                            call s_ghost_cell_extrapolation(q_prim_vf, 2, -1, k, l, q_T_sf)
                         case (BC_AXIS)
                             call s_axis(q_prim_vf, pb_in, mv_in, k, l)
                         case (BC_REFLECTIVE)
                             call s_symmetry(q_prim_vf, 2, -1, k, l, pb_in, mv_in)
                         case (BC_PERIODIC)
-                            call s_periodic(q_prim_vf, 2, -1, k, l, pb_in, mv_in)
+                            call s_periodic(q_prim_vf, 2, -1, k, l, pb_in, mv_in, q_T_sf)
                         case (BC_SLIP_WALL)
-                            call s_slip_wall(q_prim_vf, 2, -1, k, l)
+                            call s_slip_wall(q_prim_vf, 2, -1, k, l, q_T_sf)
                         case (BC_NO_SLIP_WALL)
-                            call s_no_slip_wall(q_prim_vf, 2, -1, k, l)
+                            call s_no_slip_wall(q_prim_vf, 2, -1, k, l, q_T_sf)
                         case (BC_DIRICHLET)
                             call s_dirichlet(q_prim_vf, 2, -1, k, l)
                         end select
@@ -195,22 +199,22 @@ contains
             end if
 
             if (bc_y%end >= 0) then
-                call s_mpi_sendrecv_variables_buffers(q_prim_vf, 2, 1, sys_size, pb_in, mv_in)
+                call s_mpi_sendrecv_variables_buffers(q_prim_vf, 2, 1, sys_size, pb_in, mv_in, q_T_sf=q_T_sf)
             else
                 $:GPU_PARALLEL_LOOP(private='[l,k]', collapse=2)
                 do l = 0, p
                     do k = -buff_size, m + buff_size
                         select case (int(bc_type(2, 2)%sf(k, 0, l)))
                         case (BC_CHAR_SUP_OUTFLOW:BC_GHOST_EXTRAP)
-                            call s_ghost_cell_extrapolation(q_prim_vf, 2, 1, k, l)
+                            call s_ghost_cell_extrapolation(q_prim_vf, 2, 1, k, l, q_T_sf)
                         case (BC_REFLECTIVE)
                             call s_symmetry(q_prim_vf, 2, 1, k, l, pb_in, mv_in)
                         case (BC_PERIODIC)
-                            call s_periodic(q_prim_vf, 2, 1, k, l, pb_in, mv_in)
+                            call s_periodic(q_prim_vf, 2, 1, k, l, pb_in, mv_in, q_T_sf)
                         case (BC_SLIP_WALL)
-                            call s_slip_wall(q_prim_vf, 2, 1, k, l)
+                            call s_slip_wall(q_prim_vf, 2, 1, k, l, q_T_sf)
                         case (BC_NO_SLIP_WALL)
-                            call s_no_slip_wall(q_prim_vf, 2, 1, k, l)
+                            call s_no_slip_wall(q_prim_vf, 2, 1, k, l, q_T_sf)
                         case (BC_DIRICHLET)
                             call s_dirichlet(q_prim_vf, 2, 1, k, l)
                         end select
@@ -233,22 +237,22 @@ contains
         #:if not MFC_CASE_OPTIMIZATION or num_dims > 2
 
             if (bc_z%beg >= 0) then
-                call s_mpi_sendrecv_variables_buffers(q_prim_vf, 3, -1, sys_size, pb_in, mv_in)
+                call s_mpi_sendrecv_variables_buffers(q_prim_vf, 3, -1, sys_size, pb_in, mv_in, q_T_sf=q_T_sf)
             else
                 $:GPU_PARALLEL_LOOP(private='[l,k]', collapse=2)
                 do l = -buff_size, n + buff_size
                     do k = -buff_size, m + buff_size
                         select case (int(bc_type(3, 1)%sf(k, l, 0)))
                         case (BC_CHAR_SUP_OUTFLOW:BC_GHOST_EXTRAP)
-                            call s_ghost_cell_extrapolation(q_prim_vf, 3, -1, k, l)
+                            call s_ghost_cell_extrapolation(q_prim_vf, 3, -1, k, l, q_T_sf)
                         case (BC_REFLECTIVE)
                             call s_symmetry(q_prim_vf, 3, -1, k, l, pb_in, mv_in)
                         case (BC_PERIODIC)
-                            call s_periodic(q_prim_vf, 3, -1, k, l, pb_in, mv_in)
+                            call s_periodic(q_prim_vf, 3, -1, k, l, pb_in, mv_in, q_T_sf)
                         case (BC_SLIP_WALL)
-                            call s_slip_wall(q_prim_vf, 3, -1, k, l)
+                            call s_slip_wall(q_prim_vf, 3, -1, k, l, q_T_sf)
                         case (BC_NO_SLIP_WALL)
-                            call s_no_slip_wall(q_prim_vf, 3, -1, k, l)
+                            call s_no_slip_wall(q_prim_vf, 3, -1, k, l, q_T_sf)
                         case (BC_DIRICHLET)
                             call s_dirichlet(q_prim_vf, 3, -1, k, l)
                         end select
@@ -263,22 +267,22 @@ contains
             end if
 
             if (bc_z%end >= 0) then
-                call s_mpi_sendrecv_variables_buffers(q_prim_vf, 3, 1, sys_size, pb_in, mv_in)
+                call s_mpi_sendrecv_variables_buffers(q_prim_vf, 3, 1, sys_size, pb_in, mv_in, q_T_sf=q_T_sf)
             else
                 $:GPU_PARALLEL_LOOP(private='[l,k]', collapse=2)
                 do l = -buff_size, n + buff_size
                     do k = -buff_size, m + buff_size
                         select case (int(bc_type(3, 2)%sf(k, l, 0)))
                         case (BC_CHAR_SUP_OUTFLOW:BC_GHOST_EXTRAP)
-                            call s_ghost_cell_extrapolation(q_prim_vf, 3, 1, k, l)
+                            call s_ghost_cell_extrapolation(q_prim_vf, 3, 1, k, l, q_T_sf)
                         case (BC_REFLECTIVE)
                             call s_symmetry(q_prim_vf, 3, 1, k, l, pb_in, mv_in)
                         case (BC_PERIODIC)
-                            call s_periodic(q_prim_vf, 3, 1, k, l, pb_in, mv_in)
+                            call s_periodic(q_prim_vf, 3, 1, k, l, pb_in, mv_in, q_T_sf)
                         case (BC_SlIP_WALL)
-                            call s_slip_wall(q_prim_vf, 3, 1, k, l)
+                            call s_slip_wall(q_prim_vf, 3, 1, k, l, q_T_sf)
                         case (BC_NO_SLIP_WALL)
-                            call s_no_slip_wall(q_prim_vf, 3, 1, k, l)
+                            call s_no_slip_wall(q_prim_vf, 3, 1, k, l, q_T_sf)
                         case (BC_DIRICHLET)
                             call s_dirichlet(q_prim_vf, 3, 1, k, l)
                         end select
@@ -296,12 +300,15 @@ contains
 
     end subroutine s_populate_variables_buffers
 
-    subroutine s_ghost_cell_extrapolation(q_prim_vf, bc_dir, bc_loc, k, l)
+    subroutine s_ghost_cell_extrapolation(q_prim_vf, bc_dir, bc_loc, k, l, q_T_sf)
         $:GPU_ROUTINE(function_name='s_ghost_cell_extrapolation', &
             & parallelism='[seq]', cray_inline=True)
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
+        type(scalar_field), optional, intent(inout) :: q_T_sf
         integer, intent(in) :: bc_dir, bc_loc
         integer, intent(in) :: k, l
+        real(wp), dimension(num_species) :: Ys_in
+        real(wp) :: mix_mol_weight
 
         integer :: j, i
 
@@ -313,6 +320,15 @@ contains
                             q_prim_vf(i)%sf(0, k, l)
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(0, k, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(-j, k, l) = q_prim_vf(E_idx)%sf(0, k, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(0, k, l))
+                    end do
+                end if
             else !< bc_x%end
                 do i = 1, sys_size
                     do j = 1, buff_size
@@ -320,6 +336,16 @@ contains
                             q_prim_vf(i)%sf(m, k, l)
                     end do
                 end do
+
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(m, k, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(m + j, k, l) = q_prim_vf(E_idx)%sf(m, k, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(m, k, l))
+                    end do
+                end if
             end if
         elseif (bc_dir == 2) then !< y-direction
             if (bc_loc == -1) then !< bc_y%beg
@@ -329,6 +355,15 @@ contains
                             q_prim_vf(i)%sf(k, 0, l)
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, 0, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, -j, l) = q_prim_vf(E_idx)%sf(k, 0, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, 0, l))
+                    end do
+                end if
             else !< bc_y%end
                 do i = 1, sys_size
                     do j = 1, buff_size
@@ -336,6 +371,15 @@ contains
                             q_prim_vf(i)%sf(k, n, l)
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, n, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, n + j, l) = q_prim_vf(E_idx)%sf(k, n, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, n, l))
+                    end do
+                end if
             end if
         elseif (bc_dir == 3) then !< z-direction
             if (bc_loc == -1) then !< bc_z%beg
@@ -345,6 +389,15 @@ contains
                             q_prim_vf(i)%sf(k, l, 0)
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, l, 0)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, l, -j) = q_prim_vf(E_idx)%sf(k, l, 0)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, l, 0))
+                    end do
+                end if
             else !< bc_z%end
                 do i = 1, sys_size
                     do j = 1, buff_size
@@ -352,6 +405,15 @@ contains
                             q_prim_vf(i)%sf(k, l, p)
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, l, p)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, l, p + j) = q_prim_vf(E_idx)%sf(k, l, p)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, l, p))
+                    end do
+                end if
             end if
         end if
 
@@ -617,12 +679,15 @@ contains
 
     end subroutine s_symmetry
 
-    subroutine s_periodic(q_prim_vf, bc_dir, bc_loc, k, l, pb_in, mv_in)
+    subroutine s_periodic(q_prim_vf, bc_dir, bc_loc, k, l, pb_in, mv_in, q_T_sf)
         $:GPU_ROUTINE(parallelism='[seq]')
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
+        type(scalar_field), intent(inout) :: q_T_sf
         real(stp), optional, dimension(idwbuff(1)%beg:, idwbuff(2)%beg:, idwbuff(3)%beg:, 1:, 1:), intent(inout) :: pb_in, mv_in
         integer, intent(in) :: bc_dir, bc_loc
         integer, intent(in) :: k, l
+        real(wp), dimension(num_species) :: Ys_in
+        real(wp) :: mix_mol_weight
 
         integer :: j, q, i
 
@@ -634,6 +699,16 @@ contains
                             q_prim_vf(i)%sf(m - (j - 1), k, l)
                     end do
                 end do
+
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(m - (j - 1), k, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(-j, k, l) = q_prim_vf(E_idx)%sf(m - (j - 1), k, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(m - (j - 1), k, l))
+                    end do
+                end if
 
                 if (qbmm .and. .not. polytropic) then
                     do i = 1, nb
@@ -654,6 +729,18 @@ contains
                             q_prim_vf(i)%sf(j - 1, k, l)
                     end do
                 end do
+
+                if (chemistry) then
+
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(j - 1, k, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(m + j, k, l) = q_prim_vf(E_idx)%sf(j - 1, k, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(j - 1, k, l))
+                    end do
+
+                end if
 
                 if (qbmm .and. .not. polytropic) then
                     do i = 1, nb
@@ -815,12 +902,15 @@ contains
 
     end subroutine s_axis
 
-    subroutine s_slip_wall(q_prim_vf, bc_dir, bc_loc, k, l)
+    subroutine s_slip_wall(q_prim_vf, bc_dir, bc_loc, k, l, q_T_sf)
         $:GPU_ROUTINE(function_name='s_slip_wall',parallelism='[seq]', &
             & cray_inline=True)
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
         integer, intent(in) :: bc_dir, bc_loc
         integer, intent(in) :: k, l
+        type(scalar_field), intent(inout) :: q_T_sf
+        real(wp), dimension(num_species) :: Ys_in
+        real(wp) :: mix_mol_weight
 
         integer :: j, i
 
@@ -837,6 +927,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(0, k, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(-j, k, l) = q_prim_vf(E_idx)%sf(0, k, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(0, k, l))
+                    end do
+                end if
             else !< bc_x%end
                 do i = 1, sys_size
                     do j = 1, buff_size
@@ -849,6 +948,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(m, k, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(m + j, k, l) = q_prim_vf(E_idx)%sf(m, k, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(m, k, l))
+                    end do
+                end if
             end if
         elseif (bc_dir == 2) then !< y-direction
             if (bc_loc == -1) then !< bc_y%beg
@@ -863,6 +971,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, 0, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, -j, l) = q_prim_vf(E_idx)%sf(k, 0, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, 0, l))
+                    end do
+                end if
             else !< bc_y%end
                 do i = 1, sys_size
                     do j = 1, buff_size
@@ -875,6 +992,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, n, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, n + j, l) = q_prim_vf(E_idx)%sf(k, n, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, n, l))
+                    end do
+                end if
             end if
         elseif (bc_dir == 3) then !< z-direction
             if (bc_loc == -1) then !< bc_z%beg
@@ -889,6 +1015,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, l, 0)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, l, -j) = q_prim_vf(E_idx)%sf(k, l, 0)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, l, 0))
+                    end do
+                end if
             else !< bc_z%end
                 do i = 1, sys_size
                     do j = 1, buff_size
@@ -901,18 +1036,30 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, l, p)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, l, p + j) = q_prim_vf(E_idx)%sf(k, l, p)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, l, p))
+                    end do
+                end if
             end if
         end if
 
     end subroutine s_slip_wall
 
-    subroutine s_no_slip_wall(q_prim_vf, bc_dir, bc_loc, k, l)
+    subroutine s_no_slip_wall(q_prim_vf, bc_dir, bc_loc, k, l, q_T_sf)
         $:GPU_ROUTINE(function_name='s_no_slip_wall',parallelism='[seq]', &
             & cray_inline=True)
 
         type(scalar_field), dimension(sys_size), intent(inout) :: q_prim_vf
         integer, intent(in) :: bc_dir, bc_loc
         integer, intent(in) :: k, l
+        type(scalar_field), intent(inout) :: q_T_sf
+        real(wp), dimension(num_species) :: Ys_in
+        real(wp) :: mix_mol_weight
 
         integer :: j, i
 
@@ -935,6 +1082,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(0, k, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(-j, k, l) = q_prim_vf(E_idx)%sf(0, k, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(0, k, l))
+                    end do
+                end if
             else !< bc_x%end
                 do i = 1, sys_size
                     do j = 1, buff_size
@@ -953,6 +1109,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(m, k, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(m + j, k, l) = q_prim_vf(E_idx)%sf(m, k, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(m, k, l))
+                    end do
+                end if
             end if
         elseif (bc_dir == 2) then !< y-direction
             if (bc_loc == -1) then !< bc_y%beg
@@ -973,6 +1138,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, 0, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, -j, l) = q_prim_vf(E_idx)%sf(k, 0, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, 0, l))
+                    end do
+                end if
             else !< bc_y%end
                 do i = 1, sys_size
                     do j = 1, buff_size
@@ -991,6 +1165,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, n, l)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, n + j, l) = q_prim_vf(E_idx)%sf(k, n, l)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, n, l))
+                    end do
+                end if
             end if
         elseif (bc_dir == 3) then !< z-direction
             if (bc_loc == -1) then !< bc_z%beg
@@ -1011,6 +1194,15 @@ contains
                         end if
                     end do
                 end do
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, l, 0)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, l, -j) = q_prim_vf(E_idx)%sf(k, l, 0)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, l, 0))
+                    end do
+                end if
             else !< bc_z%end
                 do i = 1, sys_size
                     do j = 1, buff_size
@@ -1029,6 +1221,16 @@ contains
                         end if
                     end do
                 end do
+
+                if (chemistry) then
+                    do j = 1, buff_size
+                        do i = chemxb, chemxe
+                            Ys_in(i - chemxb + 1) = q_prim_vf(i)%sf(k, l, p)
+                        end do
+                        call get_mixture_molecular_weight(Ys_in, mix_mol_weight)
+                        q_T_sf%sf(k, l, p + j) = q_prim_vf(E_idx)%sf(k, l, p)*mix_mol_weight/(gas_constant*q_prim_vf(contxb)%sf(k, l, p))
+                    end do
+                end if
             end if
         end if
 

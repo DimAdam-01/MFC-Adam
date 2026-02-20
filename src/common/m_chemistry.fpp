@@ -250,14 +250,9 @@ contains
                             rho_L = q_prim_qp(1)%sf(x, y, z)
                             rho_R = q_prim_qp(1)%sf(x + offsets(1), y + offsets(2), z + offsets(3))
 
-                            if ( x .eq. -1 .or. x .eq. 499 .or. y .eq. -1 .or. y .eq. 499) then
-                              T_L = P_L/rho_L/Rgas_L     
-                              T_R =  P_R/rho_R/Rgas_R
 
-                            else 
                              T_L =q_T_sf%sf(x, y, z)! P_L/rho_L/Rgas_L      
                               T_R = q_T_sf%sf(x + offsets(1), y + offsets(2), z + offsets(3))! P_R/rho_R/Rgas_R
-                            end if
 
           
                             rho_cell = 0.5_wp*(rho_L + rho_R)

@@ -93,7 +93,7 @@ contains
         end do
 
         if (chemistry) then
-            allocate (q_T_sf%sf(0:m, 0:n, 0:p))
+            allocate (q_T_sf%sf(idwbuff(1)%beg:idwbuff(1)%end, idwbuff(2)%beg:idwbuff(2)%end, idwbuff(3)%beg:idwbuff(3)%end))
         end if
 
         ! Allocating the patch identities bookkeeping variable
