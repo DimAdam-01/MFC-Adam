@@ -28,8 +28,8 @@ case =     {
             "n": 499,
             "p": 0,
             "dt": 4.0e-08,
-            "t_step_start": 10000,
-            "t_step_stop": 17000,
+            "t_step_start": 0,
+            "t_step_stop": 10000,
             "t_step_save": 1000,
             # Simulation Algorithm Parameters
             "num_patches": 1,
