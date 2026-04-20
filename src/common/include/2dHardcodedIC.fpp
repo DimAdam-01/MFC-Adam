@@ -305,6 +305,30 @@
             q_prim_vf(eqn_idx%mom%beg + 1)%sf(i, j, &
                       & 0) = 112.99092883944267*((0.1/0.3))*x_cc(i)*exp(0.5*(1 - sqrt(x_cc(i)**2 + y_cc(j)**2)))
         end if
+    case (292)
+
+        umax = 0.40_wp                                      ! freestream velocity [m/s]
+        r0   = 0.0765_wp                                    ! development length x_dl [m]
+        alph = 1.568e-5_wp                                  ! kinematic viscosity nu [m2/s]
+
+        ! Blasius BL thickness at x_dl:  delta = 5 * sqrt(x_dl * nu / U_inf)
+        r    = 5.0_wp * sqrt(r0 * alph / umax)             ! delta [m]
+
+    ! Similarity variable eta = y / delta, clamped to [0,1]
+    factor = y_cc(j) / r
+    if (factor > 1.0_wp) factor = 1.0_wp
+
+    p0   = 1.67316_wp
+    r2   = p0*factor &
+         + (4.0_wp - 3.0_wp*p0)*factor**3 &
+         + (2.0_wp*p0 - 3.0_wp)*factor**4
+
+
+          q_prim_vf(eqn_idx%cont%beg)%sf(i, j, 0) = 1.0_wp
+          q_prim_vf(eqn_idx%mom%beg + 0)%sf(i, j, 0) = umax * r2
+          q_prim_vf(eqn_idx%mom%beg + 1)%sf(i, j, 0)  = 0.0_wp
+          q_prim_vf(eqn_idx%E)%sf(i, j, 0) = 101325.0_wp
+
     case default
         if (proc_rank == 0) then
             call s_int_to_str(patch_id, iStr)
